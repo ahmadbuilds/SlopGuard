@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ahmadbuilds/SlopGuard/blob/main/schemas/dependency-result.schema.json",
+  "title": "SlopGuard dependency result",
+  "description": "Versioned result contract for one requested PyPI dependency.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "requested_name",
+    "normalized_name",
+    "registry_exists",
+    "metadata_evidence",
+    "similarity_candidates",
+    "risk_score",
+    "severity",
+    "remediation"
+  ],
+  "properties": {
+    "contract_version": {"type": "string", "const": "1.0.0"},
+    "requested_name": {"type": "string", "minLength": 1},
+    "normalized_name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "PEP 503 canonicalized name: lowercase with runs of '.', '_' and '-' replaced by '-'."
+    },
+    "registry_exists": {
+      "type": ["boolean", "null"],
+      "description": "True or false only after a successful lookup; null when lookup could not establish the answer."
+    },
+    "metadata_evidence": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/metadataEvidence"}
+    },
+    "similarity_candidates": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/similarityCandidate"}
+    },
+    "risk_score": {"type": "number", "minimum": 0, "maximum": 100},
+    "severity": {"enum": ["info", "low", "medium", "high", "critical"]},
+    "remediation": {"type": "string", "minLength": 1}
+  },
+  "$defs": {
+    "metadataEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "summary", "source", "confidence"],
+      "properties": {
+        "kind": {
+          "enum": ["registry_metadata", "maintainer", "release_history", "similarity", "other"]
+        },
+        "summary": {"type": "string", "minLength": 1},
+        "source": {"type": "string", "minLength": 1},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "similarityCandidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "similarity"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "similarity": {"type": "number", "minimum": 0, "maximum": 1},
+        "registry_exists": {"type": ["boolean", "null"]}
+      }
+    }
+  }
+}
