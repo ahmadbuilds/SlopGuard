@@ -1,0 +1,20 @@
+{
+  "contract_version": "1.0.0",
+  "requested_name": "Reqeusts",
+  "normalized_name": "reqeusts",
+  "registry_exists": true,
+  "metadata_evidence": [
+    {
+      "kind": "registry_metadata",
+      "summary": "Package metadata was retrieved from the public PyPI JSON API.",
+      "source": "https://pypi.org/pypi/reqeusts/json",
+      "confidence": 1.0
+    }
+  ],
+  "similarity_candidates": [
+    {"name": "requests", "similarity": 0.875, "registry_exists": true}
+  ],
+  "risk_score": 68.0,
+  "severity": "high",
+  "remediation": "Verify the intended package name with the dependency author before installation."
+}
