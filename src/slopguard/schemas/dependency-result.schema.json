@@ -44,6 +44,12 @@
     },
     "registry_metadata": {"$ref": "#/$defs/registryMetadata"},
     "registry_diagnostics": {"$ref": "#/$defs/registryDiagnostics"},
+    "score_contributions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/scoreContribution"}
+    },
+    "decision": {"enum": ["pass", "warn", "block"]},
+    "allowlisted": {"type": "boolean"},
     "source_locations": {
       "type": "array",
       "items": {"$ref": "#/$defs/sourceLocation"}
@@ -74,6 +80,18 @@
         "edit_distance": {"type": "integer", "minimum": 0},
         "popularity_rank": {"type": "integer", "minimum": 1},
         "match_kind": {"enum": ["edit", "separator"]}
+      }
+    },
+    "scoreContribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["signal", "points", "summary"],
+      "properties": {
+        "signal": {
+          "enum": ["not_found", "lookalike", "new_package", "few_releases", "missing_source"]
+        },
+        "points": {"type": "number"},
+        "summary": {"type": "string", "minLength": 1}
       }
     },
     "sourceLocation": {

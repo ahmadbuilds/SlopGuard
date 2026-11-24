@@ -25,9 +25,16 @@ combosquatting, and the snapshot can become stale until it is refreshed.
 
 ## Configuration
 
-Copy [`examples/slopguard.toml`](examples/slopguard.toml) as a starting point. It contains safe
-policy and scoring defaults and no credentials. The current registry client uses the public PyPI
-endpoint and does not read registry URL or timeout values from this configuration.
+Configuration can live in a standalone `slopguard.toml` file or under `[tool.slopguard]` in
+`pyproject.toml`. Copy [`examples/slopguard.toml`](examples/slopguard.toml) for documented defaults.
+The library defaults to `mode = "warn"`; the sample workflow will use `mode = "block"`. Scoring is
+a configurable heuristic that helps prioritize review; it is not proof that a package is malware.
+An allow-list exception passes a result while retaining its score and evidence. Unknown registry
+results follow `on_unknown`, which defaults to `warn`.
+
+The configuration loader prefers an explicit path, then `slopguard.toml`, then the
+`[tool.slopguard]` table in `pyproject.toml`, then built-in defaults. When SG-06 adds PR scanning,
+it must parse configuration from the PR's base commit so a change cannot loosen its own policy.
 
 ## More information
 

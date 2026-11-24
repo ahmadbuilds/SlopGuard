@@ -10,8 +10,8 @@ scoring, and presentation stages.
 The extractor and response parser are pure: they parse input text and JSON but never install,
 import, or execute a package. The registry client reads PyPI project JSON only. Registry failures
 remain unknown and do not become evidence that a project is absent or malicious. The current
-repository implements extraction, bounded PyPI lookup, merging registry evidence, and offline
-look-alike detection; scoring and presentation are planned components.
+repository implements extraction, bounded PyPI lookup, merging registry evidence, offline
+look-alike detection, configuration and scoring; presentation is still planned.
 
 ## Result contract
 
@@ -34,6 +34,9 @@ Serialized consumers should validate results against the JSON Schema.
 | `registry_diagnostics` | Optional request latency, attempt count, HTTP status, retry-after/rate-limit headers, and safe error detail for evaluation. |
 | `metadata_evidence` | Sourced, human-readable facts. Each item includes an evidence kind, summary, source, and confidence from 0 to 1. |
 | `similarity_candidates` | Candidate PyPI names with normalized similarity from 0 to 1, optional existence state, edit distance, popularity rank, and match kind. |
+| `score_contributions` | Optional additive points and explanation for each of the five scoring signals. |
+| `decision` | Optional `pass`, `warn`, or `block` result from the policy stage. Missing means not evaluated. |
+| `allowlisted` | Optional boolean indicating an active allow-list entry matched the package. |
 | `risk_score` | Aggregated risk from 0 (lowest) to 100 (highest). |
 | `severity` | `info`, `low`, `medium`, `high`, or `critical`. |
 | `remediation` | Actionable explanation for a developer reviewing the finding. |
@@ -51,16 +54,37 @@ Serialized consumers should validate results against the JSON Schema.
   must not be converted into `registry_exists: false` or a malicious verdict.
 - Registry lookup status and metadata diagnostics are supporting facts only; applying them never
   changes `risk_score` or `severity`.
-- The default policy is `warn`. An opt-in `block` mode may block only when the result is
-  sufficiently evidenced and the risk score reaches the configured threshold. The policy and
-  thresholds are provisional until confirmed by the team.
+- The library defaults to `warn`. `block` mode may block at the configured block threshold, subject
+  to the non-configurable unknown-registry and import-only safeguards described below.
 
 ### Severity and enforcement
 
-Score thresholds are policy configuration, not part of the JSON Schema. The example configuration
-uses `high >= 60` and `critical >= 85`; lower bands are `info < 20`, `low >= 20`, and `medium >= 40`.
-Teams may tune scoring without changing the data shape. Enforcement should consume severity, score,
-and evidence completeness together; an unknown registry result alone is never grounds to block.
+The score is the sum of five independently explained signals, clamped to the contract's 0–100
+range and rounded to two decimal places: PyPI not-found, look-alike, recent first release, few
+releases, and missing source links. Default weights are `60`, `35`, `25`, `10`, and `10` in that
+order; the new-package window is 30 days, and the few-release limit is one release. Look-alike
+points use default edit-distance factors 1.0 for distance 1 and 0.5 for distance 2; separator-only
+matches use factor 1.0. The popularity multiplier is 1.0 through rank 100 and falls linearly to
+0.3 at the configured similarity `top_n`. Missing signal evidence adds zero points with an
+explanation; absence of evidence is never treated as safe credit.
+
+Default severity lower bounds are low 20, medium 40, high 60, and critical 80; scores below low are
+info. Default policy thresholds are warn 40 and block 80. The library defaults to `mode = "warn"`;
+blocking requires `mode = "block"` and a score at or above the block threshold. Scores and
+contributions are still computed for allow-listed names, but an active allow-list entry takes
+precedence and sets `decision = "pass"`.
+Expired allow-list entries are ignored for decisions and can be returned by configuration helpers
+so a caller can report them as warnings.
+
+Two policy invariants cannot be configured away: transient or malformed registry results never
+block (and warn at minimum when `on_unknown = "warn"`), and import-only findings never block.
+These controls prevent unavailable PyPI evidence or an import-only heuristic from causing a hard
+failure. Scoring is evidence for review, not a malware verdict.
+
+Configuration is loaded in this order: explicit path, repository `slopguard.toml`, the
+`[tool.slopguard]` table in `pyproject.toml`, then built-in defaults. `parse_config` accepts TOML
+text without file access. SG-06 must read the PR's base-commit configuration, not the proposed head
+configuration, so a PR cannot loosen the policy used to evaluate itself.
 
 ### Compatibility
 
@@ -85,6 +109,9 @@ Each normalized result conforms to the dependency-result schema. At extraction t
 placeholder. Later registry and scoring stages must populate those fields before making policy
 decisions. `source_locations` records the file, 1-based line, and source kind; duplicate package
 names are emitted once with all their locations.
+
+An extracted result is unscored: it has no `decision`. Consumers in SG-06 and SG-07 must treat a
+result without `decision` as not evaluated, never as passed.
 
 ### Supported syntax
 

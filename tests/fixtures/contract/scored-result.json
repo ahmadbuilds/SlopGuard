@@ -1,0 +1,30 @@
+{
+  "contract_version": "1.0.0",
+  "requested_name": "reqeusts",
+  "normalized_name": "reqeusts",
+  "registry_exists": false,
+  "registry_status": "not_found",
+  "metadata_evidence": [],
+  "similarity_candidates": [
+    {
+      "name": "requests",
+      "similarity": 0.875,
+      "registry_exists": true,
+      "edit_distance": 1,
+      "popularity_rank": 8,
+      "match_kind": "edit"
+    }
+  ],
+  "risk_score": 95.0,
+  "severity": "critical",
+  "remediation": "Do not add the name until it is verified.",
+  "score_contributions": [
+    {"signal": "few_releases", "points": 0.0, "summary": "Release-count evidence was unavailable."},
+    {"signal": "lookalike", "points": 35.0, "summary": "requests is a distance-1 candidate at rank 8."},
+    {"signal": "missing_source", "points": 0.0, "summary": "Source evidence was unavailable."},
+    {"signal": "new_package", "points": 0.0, "summary": "Release-date evidence was unavailable."},
+    {"signal": "not_found", "points": 60.0, "summary": "PyPI returned not found."}
+  ],
+  "decision": "block",
+  "allowlisted": false
+}
