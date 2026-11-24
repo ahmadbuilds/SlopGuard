@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 
+import pytest
 from jsonschema import Draft202012Validator
 
 from slopguard.extractor import ChangedFile, extract_dependencies
@@ -229,6 +230,21 @@ def test_import_of_changed_local_module_is_not_a_pypi_candidate() -> None:
 
     assert result.candidates == ()
     assert result.warnings == ()
+
+
+@pytest.mark.parametrize("local_path", ["src/unrelated/requests.py", "tests/requests.py"])
+def test_nested_local_module_does_not_hide_top_level_external_import(local_path: str) -> None:
+    result = extract_dependencies(
+        [
+            ChangedFile(local_path, "", "VALUE = 1\n"),
+            ChangedFile("src/app.py", "", "import requests\n"),
+        ]
+    )
+
+    assert [candidate["normalized_name"] for candidate in result.candidates] == ["requests"]
+    assert result.candidates[0]["source_locations"] == [
+        {"file": "src/app.py", "line": 1, "source_type": "import"}
+    ]
 
 
 def test_aggregate_input_limit_stops_consuming_a_large_iterable() -> None:

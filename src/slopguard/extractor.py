@@ -186,13 +186,12 @@ def _local_python_module_names(changed_files: tuple[ChangedFile, ...]) -> set[st
         if path.suffix.lower() != ".py" or not changed_file.content:
             continue
         parts = [part for part in path.with_suffix("").parts if part not in {"/", "."}]
-        if parts and parts[0] in {"src", "lib", "app", "tests"}:
+        if parts and parts[0] in {"src", "lib"}:
             parts = parts[1:]
         if parts and parts[-1] == "__init__":
             parts = parts[:-1]
-        for start in range(len(parts)):
-            for end in range(start + 1, len(parts) + 1):
-                names.add(".".join(parts[start:end]))
+        for end in range(1, len(parts) + 1):
+            names.add(".".join(parts[:end]))
     return names
 
 
