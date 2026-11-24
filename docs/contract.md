@@ -10,6 +10,9 @@
 | `requested_name` | Exact name found in the input manifest or source. |
 | `normalized_name` | PEP 503 canonicalized name: lowercase and each run of `.`, `_`, or `-` replaced with `-`. |
 | `registry_exists` | `true` or `false` after a successful PyPI lookup; `null` if a timeout, rate limit, or other lookup failure prevents a conclusion. |
+| `registry_status` | Optional explicit state: `exists`, `not_found`, `transient_error`, or `malformed_response`. This distinguishes an unknown lookup from a confirmed 404. |
+| `registry_metadata` | Optional structured first/latest upload timestamps, release count, project URLs, maintainer hints, and source hints from PyPI JSON metadata. Missing fields remain `null` or empty. |
+| `registry_diagnostics` | Optional request latency, attempt count, HTTP status, retry-after/rate-limit headers, and safe error detail for evaluation. |
 | `metadata_evidence` | Sourced, human-readable facts. Each item includes an evidence kind, summary, source, and confidence from 0 to 1. |
 | `similarity_candidates` | Candidate PyPI names with normalized similarity from 0 to 1 and optional existence state. |
 | `risk_score` | Aggregated risk from 0 (lowest) to 100 (highest). |

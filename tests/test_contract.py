@@ -22,6 +22,39 @@ def test_unknown_registry_state_is_allowed() -> None:
     VALIDATOR.validate(result)
 
 
+def test_registry_metadata_and_diagnostics_match_contract() -> None:
+    result = {
+        **SAMPLE,
+        "registry_exists": True,
+        "registry_status": "exists",
+        "registry_metadata": {
+            "first_release_at": "2024-01-01T00:00:00Z",
+            "release_count": 2,
+            "latest_release_at": "2024-03-01T00:00:00Z",
+            "project_urls": {"Source": "https://example.com/source"},
+            "maintainer_hints": ["maintainer-name"],
+            "source_hints": ["https://example.com/source"],
+        },
+        "registry_diagnostics": {
+            "latency_ms": 25.5,
+            "attempts": 1,
+            "http_status": 200,
+            "retry_after": None,
+            "rate_limit_remaining": None,
+            "error": None,
+        },
+    }
+
+    VALIDATOR.validate(result)
+
+
+@pytest.mark.parametrize("status", ["exists", "not_found", "transient_error", "malformed_response"])
+def test_all_registry_lookup_states_are_allowed(status: str) -> None:
+    result = {**SAMPLE, "registry_status": status}
+
+    VALIDATOR.validate(result)
+
+
 def test_missing_package_example_only_cites_candidate_evidence() -> None:
     assert SAMPLE["registry_exists"] is False
     assert all(evidence["kind"] != "registry_metadata" for evidence in SAMPLE["metadata_evidence"])

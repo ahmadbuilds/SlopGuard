@@ -39,6 +39,11 @@
     "risk_score": {"type": "number", "minimum": 0, "maximum": 100},
     "severity": {"enum": ["info", "low", "medium", "high", "critical"]},
     "remediation": {"type": "string", "minLength": 1},
+    "registry_status": {
+      "enum": ["exists", "not_found", "transient_error", "malformed_response"]
+    },
+    "registry_metadata": {"$ref": "#/$defs/registryMetadata"},
+    "registry_diagnostics": {"$ref": "#/$defs/registryDiagnostics"},
     "source_locations": {
       "type": "array",
       "items": {"$ref": "#/$defs/sourceLocation"}
@@ -76,6 +81,49 @@
         "file": {"type": "string", "minLength": 1},
         "line": {"type": "integer", "minimum": 1},
         "source_type": {"enum": ["requirements", "pyproject", "import"]}
+      }
+    },
+    "registryMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "first_release_at",
+        "release_count",
+        "latest_release_at",
+        "project_urls",
+        "maintainer_hints",
+        "source_hints"
+      ],
+      "properties": {
+        "first_release_at": {"type": ["string", "null"], "format": "date-time"},
+        "release_count": {"type": ["integer", "null"], "minimum": 0},
+        "latest_release_at": {"type": ["string", "null"], "format": "date-time"},
+        "project_urls": {
+          "type": "object",
+          "additionalProperties": {"type": "string", "format": "uri"}
+        },
+        "maintainer_hints": {"type": "array", "items": {"type": "string"}},
+        "source_hints": {"type": "array", "items": {"type": "string", "format": "uri"}}
+      }
+    },
+    "registryDiagnostics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "latency_ms",
+        "attempts",
+        "http_status",
+        "retry_after",
+        "rate_limit_remaining",
+        "error"
+      ],
+      "properties": {
+        "latency_ms": {"type": "number", "minimum": 0},
+        "attempts": {"type": "integer", "minimum": 1},
+        "http_status": {"type": ["integer", "null"], "minimum": 100, "maximum": 599},
+        "retry_after": {"type": ["string", "null"]},
+        "rate_limit_remaining": {"type": ["string", "null"]},
+        "error": {"type": ["string", "null"]}
       }
     }
   }
