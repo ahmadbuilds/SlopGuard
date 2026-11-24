@@ -1,7 +1,6 @@
 """Controlled-response tests for the PyPI HTTP client."""
 
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
@@ -163,54 +162,74 @@ def test_retry_exhaustion_stays_unknown_and_records_attempt_count() -> None:
     assert result.error == "PyPI returned HTTP 503."
 
 
-def test_slow_response_chunks_obey_total_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_slow_response_headers_obey_total_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
     elapsed = [0.0]
-    socket_timeouts: list[float] = []
+    selector_timeouts: list[float] = []
 
-    class FakeSocket:
-        timeout = 0.0
+    class SlowSocket:
+        read_count = 0
 
-        def settimeout(self, value: float) -> None:
-            self.timeout = value
-            socket_timeouts.append(value)
-
-    class SlowResponse:
-        status = 200
-        headers: dict[str, str] = {}
-
-        def __init__(self) -> None:
-            self.sock = FakeSocket()
-            self.fp = SimpleNamespace(fp=SimpleNamespace(raw=SimpleNamespace(_sock=self.sock)))
-            self.read_count = 0
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *_args: object) -> None:
-            return None
-
-        def read1(self, _amount: int) -> bytes:
+        def recv_into(self, buffer: bytearray) -> int:
             self.read_count += 1
-            if self.sock.timeout < 0.5:
-                elapsed[0] += self.sock.timeout
-                raise TimeoutError
+            buffer[0] = ord("H")
             elapsed[0] += 0.6
-            return b"x"
+            return 1
+
+    def slow_select(readers, writers, _errors, timeout):
+        selector_timeouts.append(timeout)
+        if elapsed[0] > 0:
+            elapsed[0] += timeout
+            return [], [], []
+        return readers, [], []
 
     monkeypatch.setattr(registry.time, "monotonic", lambda: elapsed[0])
-    monkeypatch.setattr(registry, "urlopen", lambda _request, timeout: SlowResponse())
+    monkeypatch.setattr(registry.select, "select", slow_select)
+    slow_socket = SlowSocket()
+    response = registry.http.client.HTTPResponse(
+        registry._HTTPResponseSocketAdapter(
+            registry.io.BufferedReader(registry._DeadlineReader(slow_socket, 1.0))
+        )
+    )
 
-    result = PyPIClient(
-        timeout_seconds=1.0,
-        max_retries=0,
-        clock=lambda: elapsed[0],
-        sleeper=lambda _delay: None,
-    ).lookup("sampleproject")
+    with pytest.raises(TimeoutError):
+        response.begin()
 
-    assert result.status == "transient_error"
-    assert result.registry_exists is None
-    assert result.latency_ms == 1_000.0
-    assert socket_timeouts == pytest.approx([1.0, 0.4])
+    assert slow_socket.read_count == 1
+    assert selector_timeouts == pytest.approx([1.0, 0.4])
+
+
+def test_deadline_http_response_adapter_reads_project_json(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = b'{"ok":1}'
+    wire_response = (
+        b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 8\r\n\r\n" + payload
+    )
+
+    class ResponseSocket:
+        offset = 0
+
+        def recv_into(self, buffer: bytearray) -> int:
+            count = min(len(buffer), len(wire_response) - self.offset)
+            buffer[:count] = wire_response[self.offset : self.offset + count]
+            self.offset += count
+            return count
+
+    monkeypatch.setattr(registry.select, "select", lambda readers, *_args: (readers, [], []))
+    response = registry.http.client.HTTPResponse(
+        registry._HTTPResponseSocketAdapter(
+            registry.io.BufferedReader(
+                registry._DeadlineReader(ResponseSocket(), registry.time.monotonic() + 1.0)
+            )
+        )
+    )
+
+    response.begin()
+
+    assert response.status == 200
+    assert response.getheader("content-type") == "application/json"
+    assert response.read(9) == payload
+    response.close()
 
 
 @pytest.mark.parametrize("timeout", [0, -1, 10.1])

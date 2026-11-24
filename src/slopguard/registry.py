@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import errno
+import http.client
+import io
 import re
+import select
+import socket
+import ssl
 import time
 from collections.abc import Callable, Mapping
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
-from urllib.error import HTTPError
-from urllib.parse import quote
-from urllib.request import Request, urlopen
+from urllib.parse import quote, urlsplit
 
 from packaging.utils import canonicalize_name
 
@@ -21,6 +25,7 @@ from .pypi import PyPIMetadataError, parse_project_response
 MAX_RESPONSE_BYTES = 2_000_000
 DEFAULT_TIMEOUT_SECONDS = 3.0
 _READ_CHUNK_BYTES = 64 * 1024
+_MAX_HEADER_BYTES = 64 * 1024
 _NORMALIZED_NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 
 
@@ -291,58 +296,189 @@ def _retry_delay(
 
 
 def _fetch_project_json(url: str, timeout: float, max_bytes: int) -> HTTPResponse:
-    request = Request(
-        url,
-        headers={
-            "Accept": "application/json",
-            "User-Agent": "SlopGuard/0.1 (metadata-only dependency scanner)",
-        },
-    )
     deadline = time.monotonic() + timeout
+    parsed_url = urlsplit(url)
+    if parsed_url.scheme != "https" or parsed_url.hostname != "pypi.org":
+        raise OSError("PyPI requests must use the official HTTPS host.")
+    if parsed_url.port not in {None, 443}:
+        raise OSError("PyPI requests must use the standard HTTPS port.")
+
+    host = parsed_url.hostname
+    target = parsed_url.path or "/"
+    if parsed_url.query:
+        target += f"?{parsed_url.query}"
+    request = (
+        f"GET {target} HTTP/1.1\r\n"
+        f"Host: {host}\r\n"
+        "Accept: application/json\r\n"
+        "Accept-Encoding: identity\r\n"
+        "Connection: close\r\n"
+        "User-Agent: SlopGuard/0.1 (metadata-only dependency scanner)\r\n\r\n"
+    ).encode("ascii")
+
+    connection = _connect_tls(host, 443, deadline)
     try:
-        with urlopen(request, timeout=timeout) as response:
-            body = _read_response_body(response, deadline=deadline, max_bytes=max_bytes)
+        _send_with_deadline(connection, request, deadline)
+        buffered_reader = io.BufferedReader(_DeadlineReader(connection, deadline))
+        response = http.client.HTTPResponse(_HTTPResponseSocketAdapter(buffered_reader))
+        try:
+            response.begin()
+            headers = dict(response.getheaders())
+            if response.status == 200:
+                try:
+                    body = response.read(max_bytes + 1)
+                except http.client.IncompleteRead:
+                    # A truncated body must not become a valid existence result.
+                    body = b""
+            else:
+                body = b""
             return HTTPResponse(
                 status_code=response.status,
                 body=body[:max_bytes],
-                headers=dict(response.headers.items()),
+                headers=headers,
                 too_large=len(body) > max_bytes,
             )
-    except HTTPError as error:
-        body = _read_response_body(error, deadline=deadline, max_bytes=max_bytes)
-        return HTTPResponse(
-            status_code=error.code,
-            body=body[:max_bytes],
-            headers=dict(error.headers.items()) if error.headers else {},
-            too_large=len(body) > max_bytes,
-        )
+        except http.client.HTTPException as error:
+            raise OSError("PyPI returned an invalid HTTP response.") from error
+        finally:
+            response.close()
+    finally:
+        connection.close()
 
 
-def _read_response_body(response: object, *, deadline: float, max_bytes: int) -> bytes:
-    """Read bounded chunks while enforcing one monotonic response deadline."""
+class _HTTPResponseSocketAdapter:
+    """Provide a deadline-aware buffered stream to ``http.client``."""
 
-    reader = getattr(response, "read1", None)
-    if not callable(reader):
-        raise TimeoutError("PyPI response does not support bounded reads.")
+    def __init__(self, stream: io.BufferedReader) -> None:
+        self._stream = stream
 
-    http_response = getattr(response, "fp", response)
-    buffered_reader = getattr(http_response, "fp", None)
-    raw_socket = getattr(getattr(buffered_reader, "raw", None), "_sock", None)
-    set_timeout = getattr(raw_socket, "settimeout", None)
-    if not callable(set_timeout):
-        raise TimeoutError("PyPI response socket does not support bounded reads.")
+    def makefile(self, _mode: str) -> io.BufferedReader:
+        return self._stream
 
-    body = bytearray()
-    while len(body) <= max_bytes:
+
+class _DeadlineReader(io.RawIOBase):
+    """Non-blocking socket reader that checks one absolute monotonic deadline."""
+
+    def __init__(self, connection: ssl.SSLSocket, deadline: float) -> None:
+        self._connection = connection
+        self._deadline = deadline
+
+    def readable(self) -> bool:
+        return True
+
+    def readinto(self, buffer: bytearray) -> int | None:
+        if not buffer:
+            return 0
+        while True:
+            _wait_for_socket(self._connection, self._deadline, readable=True)
+            try:
+                return self._connection.recv_into(buffer)
+            except ssl.SSLWantReadError:
+                continue
+            except ssl.SSLWantWriteError:
+                _wait_for_socket(self._connection, self._deadline, writable=True)
+            except BlockingIOError:
+                continue
+
+
+def _connect_tls(host: str, port: int, deadline: float) -> ssl.SSLSocket:
+    """Connect and complete TLS without blocking past the request deadline."""
+
+    addresses = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    if time.monotonic() >= deadline:
+        raise TimeoutError("PyPI request exceeded the total request deadline.")
+
+    pending_errors = {
+        errno.EINPROGRESS,
+        errno.EWOULDBLOCK,
+        errno.EALREADY,
+        errno.EINTR,
+    }
+    last_error: OSError | None = None
+    for family, socket_type, protocol, _canonical_name, address in addresses:
+        if time.monotonic() >= deadline:
+            raise TimeoutError("PyPI request exceeded the total request deadline.")
+        connection: socket.socket | ssl.SSLSocket = socket.socket(family, socket_type, protocol)
+        try:
+            connection.setblocking(False)
+            connect_error = connection.connect_ex(address)
+            if connect_error not in {0, errno.EISCONN}:
+                if connect_error not in pending_errors:
+                    raise OSError(connect_error, "Unable to connect to PyPI.")
+                _wait_for_socket(connection, deadline, writable=True)
+                connect_error = connection.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
+                if connect_error:
+                    raise OSError(connect_error, "Unable to connect to PyPI.")
+
+            connection = ssl.create_default_context().wrap_socket(
+                connection,
+                server_hostname=host,
+                do_handshake_on_connect=False,
+            )
+            connection.setblocking(False)
+            while True:
+                try:
+                    connection.do_handshake()
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError("PyPI request exceeded the total request deadline.")
+                    return connection
+                except ssl.SSLWantReadError:
+                    _wait_for_socket(connection, deadline, readable=True)
+                except ssl.SSLWantWriteError:
+                    _wait_for_socket(connection, deadline, writable=True)
+        except TimeoutError:
+            connection.close()
+            raise
+        except OSError as error:
+            connection.close()
+            last_error = error
+
+    if last_error is not None:
+        raise last_error
+    raise OSError("No network address was available for PyPI.")
+
+
+def _send_with_deadline(connection: ssl.SSLSocket, payload: bytes, deadline: float) -> None:
+    remaining = memoryview(payload)
+    while remaining:
+        _wait_for_socket(connection, deadline, writable=True)
+        try:
+            sent = connection.send(remaining)
+        except ssl.SSLWantReadError:
+            _wait_for_socket(connection, deadline, readable=True)
+            continue
+        except (ssl.SSLWantWriteError, BlockingIOError):
+            continue
+        if not sent:
+            raise OSError("PyPI closed the connection before receiving the request.")
+        remaining = remaining[sent:]
+
+
+def _wait_for_socket(
+    connection: socket.socket | ssl.SSLSocket,
+    deadline: float,
+    *,
+    readable: bool = False,
+    writable: bool = False,
+) -> None:
+    while True:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
-            raise TimeoutError("PyPI response exceeded the total request deadline.")
-        set_timeout(remaining)
-        chunk = reader(min(_READ_CHUNK_BYTES, max_bytes + 1 - len(body)))
-        if not chunk:
-            break
-        body.extend(chunk)
-    return bytes(body)
+            raise TimeoutError("PyPI request exceeded the total request deadline.")
+        if readable and isinstance(connection, ssl.SSLSocket) and connection.pending():
+            return
+        try:
+            ready_read, ready_write, _ = select.select(
+                [connection] if readable else [],
+                [connection] if writable else [],
+                [],
+                remaining,
+            )
+        except InterruptedError:
+            continue
+        if ready_read or ready_write:
+            return
+        raise TimeoutError("PyPI request exceeded the total request deadline.")
 
 
 def _header(headers: Mapping[str, str], name: str) -> str | None:
