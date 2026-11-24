@@ -1,0 +1,20 @@
+{
+  "contract_version": "1.0.0",
+  "requested_name": "reqeusts",
+  "normalized_name": "reqeusts",
+  "registry_exists": false,
+  "metadata_evidence": [],
+  "similarity_candidates": [
+    {
+      "name": "requests",
+      "similarity": 0.875,
+      "registry_exists": true,
+      "edit_distance": 1,
+      "popularity_rank": 1,
+      "match_kind": "edit"
+    }
+  ],
+  "risk_score": 68.0,
+  "severity": "high",
+  "remediation": "Verify the intended package name before adding the dependency."
+}
