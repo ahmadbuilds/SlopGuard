@@ -20,6 +20,7 @@ from .pypi import PyPIMetadataError, parse_project_response
 
 MAX_RESPONSE_BYTES = 2_000_000
 DEFAULT_TIMEOUT_SECONDS = 3.0
+_READ_CHUNK_BYTES = 64 * 1024
 _NORMALIZED_NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 
 
@@ -131,7 +132,9 @@ class PyPIClient:
             if response is not None:
                 retry_after = _header(response.headers, "retry-after") or retry_after
                 rate_limit_remaining = (
-                    _header(response.headers, "x-ratelimit-remaining") or rate_limit_remaining
+                    _header(response.headers, "ratelimit-remaining")
+                    or _header(response.headers, "x-ratelimit-remaining")
+                    or rate_limit_remaining
                 )
                 if _is_retryable_status(response.status_code) and attempts <= self.max_retries:
                     last_retryable_status = response.status_code
@@ -149,7 +152,9 @@ class PyPIClient:
             break
 
         recovery_note = (
-            f"Recovered after HTTP {last_retryable_status}." if last_retryable_status else None
+            f"Recovered after HTTP {last_retryable_status}."
+            if last_retryable_status and response is not None and response.status_code in {200, 404}
+            else None
         )
         if request_error is not None:
             result = self._result(
@@ -203,7 +208,7 @@ class PyPIClient:
             )
         else:
             try:
-                metadata = parse_project_response(response.body)
+                metadata = parse_project_response(response.body, expected_name=normalized_name)
             except PyPIMetadataError as error:
                 result = self._result(
                     normalized_name,
@@ -260,7 +265,7 @@ class PyPIClient:
 
 
 def _is_retryable_status(status_code: int) -> bool:
-    return status_code == 429 or 500 <= status_code <= 599
+    return status_code in {408, 429} or 500 <= status_code <= 599
 
 
 def _retry_delay(
@@ -293,9 +298,10 @@ def _fetch_project_json(url: str, timeout: float, max_bytes: int) -> HTTPRespons
             "User-Agent": "SlopGuard/0.1 (metadata-only dependency scanner)",
         },
     )
+    deadline = time.monotonic() + timeout
     try:
         with urlopen(request, timeout=timeout) as response:
-            body = response.read(max_bytes + 1)
+            body = _read_response_body(response, deadline=deadline, max_bytes=max_bytes)
             return HTTPResponse(
                 status_code=response.status,
                 body=body[:max_bytes],
@@ -303,13 +309,40 @@ def _fetch_project_json(url: str, timeout: float, max_bytes: int) -> HTTPRespons
                 too_large=len(body) > max_bytes,
             )
     except HTTPError as error:
-        body = error.read(max_bytes + 1)
+        body = _read_response_body(error, deadline=deadline, max_bytes=max_bytes)
         return HTTPResponse(
             status_code=error.code,
             body=body[:max_bytes],
             headers=dict(error.headers.items()) if error.headers else {},
             too_large=len(body) > max_bytes,
         )
+
+
+def _read_response_body(response: object, *, deadline: float, max_bytes: int) -> bytes:
+    """Read bounded chunks while enforcing one monotonic response deadline."""
+
+    reader = getattr(response, "read1", None)
+    if not callable(reader):
+        raise TimeoutError("PyPI response does not support bounded reads.")
+
+    http_response = getattr(response, "fp", response)
+    buffered_reader = getattr(http_response, "fp", None)
+    raw_socket = getattr(getattr(buffered_reader, "raw", None), "_sock", None)
+    set_timeout = getattr(raw_socket, "settimeout", None)
+    if not callable(set_timeout):
+        raise TimeoutError("PyPI response socket does not support bounded reads.")
+
+    body = bytearray()
+    while len(body) <= max_bytes:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("PyPI response exceeded the total request deadline.")
+        set_timeout(remaining)
+        chunk = reader(min(_READ_CHUNK_BYTES, max_bytes + 1 - len(body)))
+        if not chunk:
+            break
+        body.extend(chunk)
+    return bytes(body)
 
 
 def _header(headers: Mapping[str, str], name: str) -> str | None:

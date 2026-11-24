@@ -26,6 +26,7 @@
 - The initial threat is dependency-name confusion, including typosquatting and suspiciously similar package names. Metadata signals are evidence, not proof of malicious intent.
 - Registry requests are anonymous, read-only, and time bounded. No credentials belong in the package, configuration example, CI, or sample output.
 - Network failures, rate limits, and incomplete metadata are represented as unknown evidence. They must not be converted into `registry_exists: false` or a malicious verdict.
+- Registry lookup status and metadata diagnostics are supporting facts only; applying them never changes `risk_score` or `severity`.
 - The default policy is `warn`. An opt-in `block` mode may block only when the result is sufficiently evidenced and the risk score reaches the configured threshold. The policy and thresholds here are provisional until confirmed by the team.
 
 ## Severity and enforcement

@@ -4,6 +4,7 @@ import json
 from copy import deepcopy
 from pathlib import Path
 
+import pytest
 from jsonschema import Draft202012Validator
 
 from slopguard.extractor import ChangedFile, extract_dependencies
@@ -82,6 +83,19 @@ def test_retrying_after_prior_evidence_removes_stale_registry_facts() -> None:
     api_url = "https://pypi.org/pypi/sampleproject/json"
     assert enriched["registry_exists"] is None
     assert all(item["source"] != api_url for item in enriched["metadata_evidence"])
+
+
+def test_lookup_for_different_candidate_is_rejected() -> None:
+    candidate = _candidate()
+    original = deepcopy(candidate)
+    lookup = PyPIClient(
+        transport=lambda _url, _timeout, _max_bytes: HTTPResponse(404, b"", {})
+    ).lookup("another-package")
+
+    with pytest.raises(ValueError, match="does not match"):
+        apply_registry_lookup(candidate, lookup)
+
+    assert candidate == original
 
 
 def test_fixture_sample_registry_result_matches_contract() -> None:

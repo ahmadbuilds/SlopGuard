@@ -43,10 +43,28 @@ def test_missing_deprecated_releases_field_keeps_project_metadata() -> None:
     assert metadata["project_urls"] == {}
 
 
-@pytest.mark.parametrize("payload", [b"not json", b"{}", b"[]", b'{"info":[]}'])
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"not json",
+        b"{}",
+        b"[]",
+        b'{"info":[]}',
+        b'{"info":{}}',
+        b'{"info":{"name":"example"},"releases":null}',
+        b'{"info":{"name":"example"},"releases":{"1.0":[null]}}',
+    ],
+)
 def test_malformed_project_payload_raises_typed_error(payload: bytes) -> None:
     with pytest.raises(PyPIMetadataError):
         parse_project_response(payload)
+
+
+def test_response_for_different_project_name_is_rejected() -> None:
+    payload = '{"info":{"name":"another-project"}}'
+
+    with pytest.raises(PyPIMetadataError, match="does not match"):
+        parse_project_response(payload, expected_name="sampleproject")
 
 
 def test_non_web_project_url_is_not_emitted_as_a_source_hint() -> None:

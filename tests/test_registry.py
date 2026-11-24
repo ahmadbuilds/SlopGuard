@@ -1,9 +1,11 @@
 """Controlled-response tests for the PyPI HTTP client."""
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+import slopguard.registry as registry
 from slopguard.registry import HTTPResponse, PyPIClient
 
 SAMPLE = (Path(__file__).resolve().parent / "fixtures/pypi/sampleproject.json").read_bytes()
@@ -17,12 +19,17 @@ def _client(response: HTTPResponse, *, clock_values: tuple[float, float] = (1.0,
         calls.append((url, timeout, max_bytes))
         return response
 
-    client = PyPIClient(transport=transport, clock=lambda: next(clock_iterator))
+    client = PyPIClient(
+        transport=transport,
+        clock=lambda: next(clock_iterator),
+        sleeper=lambda _delay: None,
+    )
     return client, calls
 
 
 def test_known_project_is_normalized_and_metadata_is_returned() -> None:
-    client, calls = _client(HTTPResponse(200, SAMPLE, {}))
+    payload = SAMPLE.replace(b'"sampleproject"', b'"fast-api"')
+    client, calls = _client(HTTPResponse(200, payload, {}))
 
     result = client.lookup("Fast_API")
 
@@ -53,9 +60,11 @@ def test_not_found_is_distinct_from_registry_failure() -> None:
             HTTPResponse(429, b"", {"Retry-After": "2", "X-RateLimit-Remaining": "0"}),
             "transient_error",
         ),
-        (HTTPResponse(503, b"", {}), "transient_error"),
+        (HTTPResponse(503, b"", {"RateLimit-Remaining": "3"}), "transient_error"),
+        (HTTPResponse(408, b"", {}), "transient_error"),
         (HTTPResponse(200, b"not json", {}), "malformed_response"),
         (HTTPResponse(200, b"{}", {}), "malformed_response"),
+        (HTTPResponse(200, b'{"info":{"name":"other-package"}}', {}), "malformed_response"),
         (HTTPResponse(200, SAMPLE, {}, too_large=True), "malformed_response"),
     ],
 )
@@ -71,6 +80,8 @@ def test_http_and_payload_failures_keep_registry_state_safe(
     if response.status_code == 429:
         assert result.retry_after == "2"
         assert result.rate_limit_remaining == "0"
+    if response.status_code == 503:
+        assert result.rate_limit_remaining == "3"
 
 
 def test_timeout_is_unknown_not_not_found() -> None:
@@ -149,6 +160,57 @@ def test_retry_exhaustion_stays_unknown_and_records_attempt_count() -> None:
     assert result.registry_exists is None
     assert result.attempts == 2
     assert result.http_status == 503
+    assert result.error == "PyPI returned HTTP 503."
+
+
+def test_slow_response_chunks_obey_total_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
+    elapsed = [0.0]
+    socket_timeouts: list[float] = []
+
+    class FakeSocket:
+        timeout = 0.0
+
+        def settimeout(self, value: float) -> None:
+            self.timeout = value
+            socket_timeouts.append(value)
+
+    class SlowResponse:
+        status = 200
+        headers: dict[str, str] = {}
+
+        def __init__(self) -> None:
+            self.sock = FakeSocket()
+            self.fp = SimpleNamespace(fp=SimpleNamespace(raw=SimpleNamespace(_sock=self.sock)))
+            self.read_count = 0
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read1(self, _amount: int) -> bytes:
+            self.read_count += 1
+            if self.sock.timeout < 0.5:
+                elapsed[0] += self.sock.timeout
+                raise TimeoutError
+            elapsed[0] += 0.6
+            return b"x"
+
+    monkeypatch.setattr(registry.time, "monotonic", lambda: elapsed[0])
+    monkeypatch.setattr(registry, "urlopen", lambda _request, timeout: SlowResponse())
+
+    result = PyPIClient(
+        timeout_seconds=1.0,
+        max_retries=0,
+        clock=lambda: elapsed[0],
+        sleeper=lambda _delay: None,
+    ).lookup("sampleproject")
+
+    assert result.status == "transient_error"
+    assert result.registry_exists is None
+    assert result.latency_ms == 1_000.0
+    assert socket_timeouts == pytest.approx([1.0, 0.4])
 
 
 @pytest.mark.parametrize("timeout", [0, -1, 10.1])

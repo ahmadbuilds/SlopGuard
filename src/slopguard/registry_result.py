@@ -5,6 +5,8 @@ from __future__ import annotations
 from copy import deepcopy
 from urllib.parse import quote
 
+from packaging.utils import canonicalize_name
+
 from .contracts import DependencyResult, MetadataEvidence, RegistryDiagnostics
 from .registry import RegistryLookupResult
 
@@ -13,6 +15,9 @@ def apply_registry_lookup(
     candidate: DependencyResult, lookup: RegistryLookupResult
 ) -> DependencyResult:
     """Return an enriched copy without making a risk or policy decision."""
+
+    if canonicalize_name(candidate["normalized_name"]) != canonicalize_name(lookup.normalized_name):
+        raise ValueError("Registry lookup name does not match the dependency candidate.")
 
     result = deepcopy(candidate)
     result["registry_exists"] = lookup.registry_exists

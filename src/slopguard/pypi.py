@@ -7,6 +7,8 @@ from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlsplit
 
+from packaging.utils import canonicalize_name
+
 from .contracts import RegistryMetadata
 
 
@@ -14,7 +16,9 @@ class PyPIMetadataError(ValueError):
     """Raised when a successful HTTP response is not valid project JSON."""
 
 
-def parse_project_response(payload: bytes | str) -> RegistryMetadata:
+def parse_project_response(
+    payload: bytes | str, *, expected_name: str | None = None
+) -> RegistryMetadata:
     """Extract scorer metadata from a PyPI project JSON response without I/O."""
 
     try:
@@ -26,8 +30,16 @@ def parse_project_response(payload: bytes | str) -> RegistryMetadata:
         raise PyPIMetadataError("PyPI JSON response must contain an info object.")
 
     info = document["info"]
+    project_name = info.get("name")
+    if not isinstance(project_name, str) or not project_name.strip():
+        raise PyPIMetadataError("PyPI JSON info object must contain a project name.")
+    if expected_name is not None and canonicalize_name(project_name) != canonicalize_name(
+        expected_name
+    ):
+        raise PyPIMetadataError("PyPI response project name does not match the requested name.")
+
     releases = document.get("releases")
-    if releases is not None and not isinstance(releases, dict):
+    if "releases" in document and not isinstance(releases, dict):
         raise PyPIMetadataError("PyPI JSON releases field must be an object.")
 
     release_count: int | None = None
@@ -41,7 +53,7 @@ def parse_project_response(payload: bytes | str) -> RegistryMetadata:
                 release_count += 1
             for file_entry in files:
                 if not isinstance(file_entry, dict):
-                    continue
+                    raise PyPIMetadataError("PyPI JSON release file entries must be objects.")
                 timestamp = _parse_upload_time(
                     file_entry.get("upload_time_iso_8601") or file_entry.get("upload_time")
                 )
