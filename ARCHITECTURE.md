@@ -144,7 +144,9 @@ in `examples/slopguard.toml` control `top_n`, `min_length`, `max_distance_by_len
 Detection is limited to names in the top `top_n` entries and to the configured edit distance. It
 does not detect homoglyph substitutions or combosquatting. Snapshot freshness depends on manual
 refreshes: `source_last_update` records the source dataset age and `retrieved_at` records when this
-repository's snapshot was generated, so either can lag current PyPI popularity.
+repository's snapshot was generated, so either can lag current PyPI popularity. The matcher reports
+every match within the configured distance, including weak distance-2 matches to lower-ranked
+packages; the scoring stage decides their weight.
 
 ## PyPI registry lookup
 

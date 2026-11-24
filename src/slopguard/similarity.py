@@ -68,6 +68,22 @@ class PopularPackageIndex:
 
         return cls(packages)
 
+    def rank_of(self, name: str) -> int | None:
+        """Return the popularity rank for a canonical package name, if indexed."""
+
+        package = self._by_name.get(name)
+        return package.rank if package is not None else None
+
+    def packages_with_length(self, length: int) -> tuple[PopularPackage, ...]:
+        """Return the immutable bucket of packages with the requested name length."""
+
+        return self._by_length.get(length, ())
+
+    def separator_variants(self, name: str) -> tuple[PopularPackage, ...]:
+        """Return packages indexed under this separator-free name key."""
+
+        return self._by_separatorless_name.get(name, ())
+
     @classmethod
     @lru_cache(maxsize=1)
     def load(cls) -> PopularPackageIndex:
@@ -235,8 +251,8 @@ def find_lookalikes(
     if name_length < settings.min_length:
         return ()
     index_limit = min(settings.top_n, len(index.packages))
-    own_package = index._by_name.get(normalized_name)
-    if own_package is not None and own_package.rank <= index_limit:
+    own_rank = index.rank_of(normalized_name)
+    if own_rank is not None and own_rank <= index_limit:
         return ()
 
     max_distance = settings._distance_limit(name_length)
@@ -247,13 +263,13 @@ def find_lookalikes(
     separatorless_name = normalized_name.replace("-", "")
     separator_matches = {
         package.name
-        for package in index._by_separatorless_name.get(separatorless_name, ())
+        for package in index.separator_variants(separatorless_name)
         if package.rank <= index_limit and package.name != normalized_name
     }
 
     matches: list[LookalikeMatch] = []
     for candidate_length in range(min_candidate_length, max_candidate_length + 1):
-        for package in index._by_length.get(candidate_length, ()):
+        for package in index.packages_with_length(candidate_length):
             if package.rank > index_limit or package.name == normalized_name:
                 continue
             if package.name in separator_matches:

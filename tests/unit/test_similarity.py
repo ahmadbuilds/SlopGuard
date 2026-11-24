@@ -63,6 +63,19 @@ def test_top_n_larger_than_index_uses_all_available_names() -> None:
     assert [match.name for match in matches] == ["requests"]
 
 
+def test_index_query_methods_return_rank_buckets_and_separator_variants() -> None:
+    index = make_index("python-dateutil", "requests")
+
+    assert index.rank_of("requests") == 2
+    assert index.rank_of("unknown") is None
+    assert [package.name for package in index.packages_with_length(len("requests"))] == ["requests"]
+    assert index.packages_with_length(1000) == ()
+    assert [package.name for package in index.separator_variants("pythondateutil")] == [
+        "python-dateutil"
+    ]
+    assert index.separator_variants("unknown") == ()
+
+
 @pytest.mark.parametrize(
     "packages",
     [
@@ -264,6 +277,23 @@ def test_packaged_index_lookup_average_is_under_fifty_milliseconds() -> None:
     average_seconds = (perf_counter() - started) / len(queries)
 
     assert average_seconds < 0.05
+
+
+def test_weak_matches_are_reported_for_scoring_to_weigh() -> None:
+    """These low-confidence matches should score below a distance-1 top-100 match in SG-05."""
+
+    index = PopularPackageIndex.load()
+    settings = SimilaritySettings()
+    opencv_matches = find_lookalikes("opencv", index, settings)
+    pydantic2_matches = find_lookalikes("pydantic2", index, settings)
+
+    assert [(match.name, match.edit_distance, match.match_kind) for match in opencv_matches] == [
+        ("opencc", 1, "edit")
+    ]
+    assert [(match.name, match.edit_distance) for match in pydantic2_matches] == [
+        ("pydantic", 1),
+        ("dydantic", 2),
+    ]
 
 
 def test_similarity_query_is_canonicalized() -> None:
