@@ -1,0 +1,7 @@
+requests==2.31.0
+fast_api[standard]>=0.115; python_version >= "3.11" # an inline comment
+# commented-out-package==1
+shared_lib<=2
+not a valid requirement !!!
+https://files.example.invalid/pkg.whl
+named-url @ https://files.example.invalid/other.whl

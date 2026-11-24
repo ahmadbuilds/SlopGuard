@@ -1,0 +1,7 @@
+[project]
+name = "fixture-project"
+version = "0.1.0"
+dependencies = ["requests>=2"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
