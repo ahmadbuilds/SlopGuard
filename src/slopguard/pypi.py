@@ -90,7 +90,10 @@ def _project_urls(value: Any) -> dict[str, str]:
 
 
 def _is_web_url(value: str) -> bool:
-    parsed = urlsplit(value.strip())
+    try:
+        parsed = urlsplit(value.strip())
+    except ValueError:
+        return False
     return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
 
 
@@ -118,7 +121,10 @@ def _source_hints(project_urls: dict[str, str]) -> list[str]:
     source_labels = {"source", "repository", "code", "source code"}
     hints: list[str] = []
     for label, url in project_urls.items():
-        host = (urlsplit(url).hostname or "").lower()
+        try:
+            host = (urlsplit(url).hostname or "").lower()
+        except ValueError:
+            continue
         if label.strip().lower() in source_labels or host in {
             "github.com",
             "gitlab.com",

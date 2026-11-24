@@ -58,3 +58,12 @@ def test_non_web_project_url_is_not_emitted_as_a_source_hint() -> None:
 
     assert metadata["project_urls"] == {}
     assert metadata["source_hints"] == []
+
+
+def test_malformed_project_url_does_not_crash_response_parsing() -> None:
+    payload = json.dumps({"info": {"name": "example", "project_urls": {"Source": "https://[bad"}}})
+
+    metadata = parse_project_response(payload)
+
+    assert metadata["project_urls"] == {}
+    assert metadata["source_hints"] == []
