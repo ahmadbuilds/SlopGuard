@@ -1,0 +1,181 @@
+# Architecture
+
+## Overview and data flow
+
+SlopGuard checks Python dependencies added by a pull request for names that do not exist on PyPI
+and names that imitate popular packages. The pipeline extracts dependency additions from changed
+files, looks up project metadata on PyPI, and passes structured evidence to later similarity,
+scoring, and presentation stages.
+
+The extractor and response parser are pure: they parse input text and JSON but never install,
+import, or execute a package. The registry client reads PyPI project JSON only. Registry failures
+remain unknown and do not become evidence that a project is absent or malicious. The current
+repository implements extraction, bounded PyPI lookup, and merging registry evidence; similarity,
+scoring, and presentation are planned components.
+
+## Result contract
+
+Contract version `1.0.0` is defined by
+[`src/slopguard/schemas/dependency-result.schema.json`](src/slopguard/schemas/dependency-result.schema.json).
+The package exposes the typed `DependencyResult` shape and `load_result_schema()` through
+`slopguard.contracts`. Checked-in JSON contract examples are in `tests/fixtures/contract/`.
+Serialized consumers should validate results against the JSON Schema.
+
+### Fields
+
+| Field | Meaning |
+| --- | --- |
+| `contract_version` | Contract version, currently `1.0.0`. |
+| `requested_name` | Exact name found in the input manifest or source. |
+| `normalized_name` | PEP 503 canonicalized name: lowercase and each run of `.`, `_`, or `-` replaced by `-`. |
+| `registry_exists` | `true` or `false` after a successful PyPI lookup; `null` if a timeout, rate limit, or other lookup failure prevents a conclusion. |
+| `registry_status` | Optional explicit state: `exists`, `not_found`, `transient_error`, or `malformed_response`. This distinguishes an unknown lookup from a confirmed 404. |
+| `registry_metadata` | Optional structured first/latest upload timestamps, release count, project URLs, maintainer hints, and source hints from PyPI JSON metadata. Missing fields remain `null` or empty. |
+| `registry_diagnostics` | Optional request latency, attempt count, HTTP status, retry-after/rate-limit headers, and safe error detail for evaluation. |
+| `metadata_evidence` | Sourced, human-readable facts. Each item includes an evidence kind, summary, source, and confidence from 0 to 1. |
+| `similarity_candidates` | Candidate PyPI names with normalized similarity from 0 to 1 and optional existence state. |
+| `risk_score` | Aggregated risk from 0 (lowest) to 100 (highest). |
+| `severity` | `info`, `low`, `medium`, `high`, or `critical`. |
+| `remediation` | Actionable explanation for a developer reviewing the finding. |
+| `source_locations` | Optional source file, 1-based line, and source kind for PR annotations. Multiple locations are retained when the same normalized package appears more than once. |
+
+### MVP scope and threat model assumptions
+
+- The MVP inspects Python dependencies resolved through the public PyPI registry. It does not
+  install or execute packages.
+- The initial threat is dependency-name confusion, including typosquatting and suspiciously
+  similar package names. Metadata signals are evidence, not proof of malicious intent.
+- Registry requests are anonymous, read-only, and time bounded. No credentials belong in the
+  package, configuration example, CI, or sample output.
+- Network failures, rate limits, and incomplete metadata are represented as unknown evidence. They
+  must not be converted into `registry_exists: false` or a malicious verdict.
+- Registry lookup status and metadata diagnostics are supporting facts only; applying them never
+  changes `risk_score` or `severity`.
+- The default policy is `warn`. An opt-in `block` mode may block only when the result is
+  sufficiently evidenced and the risk score reaches the configured threshold. The policy and
+  thresholds are provisional until confirmed by the team.
+
+### Severity and enforcement
+
+Score thresholds are policy configuration, not part of the JSON Schema. The example configuration
+uses `high >= 60` and `critical >= 85`; lower bands are `info < 20`, `low >= 20`, and `medium >= 40`.
+Teams may tune scoring without changing the data shape. Enforcement should consume severity, score,
+and evidence completeness together; an unknown registry result alone is never grounds to block.
+
+### Compatibility
+
+Adding an optional field is backward compatible. Renaming/removing a required field, changing its
+meaning or type, or changing score/severity semantics requires a contract version change and
+coordination with all producers and consumers before merge.
+
+## Dependency extraction
+
+`slopguard.extractor.extract_dependencies` is a pure, offline extractor. Give it `ChangedFile`
+values containing the file path, base text, and head text. It compares the two versions and emits
+only added or replacement dependencies from the head version. Deletions and unchanged dependencies
+are ignored. Callers can pass `local_modules` to exclude first-party module names;
+`local_modules_from_paths` builds this set from repository paths and an optional project name.
+
+Each normalized result conforms to the dependency-result schema. At extraction time,
+`registry_exists` is `null`, evidence and similarity candidates are empty, and the score is a neutral
+placeholder. Later registry and scoring stages must populate those fields before making policy
+decisions. `source_locations` records the file, 1-based line, and source kind; duplicate package
+names are emitted once with all their locations.
+
+### Supported syntax
+
+- Requirements and constraints files named with `requirement(s)` or `constraint(s)` and ending in
+  `.txt` or `.in`, plus any `.txt` or `.in` file under a `requirements` directory. PEP 508 names,
+  extras, version specifiers, markers, comments, inline comments, continued logical lines, and
+  per-requirement `--hash` options are supported.
+- PEP 621 `project.dependencies` and `project.optional-dependencies` arrays, PEP 735 arrays in
+  `[dependency-groups]`, and `[build-system].requires` in `pyproject.toml`. Dependency-group
+  `{include-group = "..."}` references are skipped because they are group references, not package
+  names.
+- Python `import` and absolute `from` statements found by parsing the complete base and head syntax
+  trees. Imports inside strings, relative imports, `__future__`, standard-library imports, and
+  known local modules are excluded. Known import names and dotted prefixes are mapped to
+  distributions, including `cv2` to `opencv-python`, `PIL` to `Pillow`, `yaml` to `PyYAML`, and
+  `google.protobuf` to `protobuf`. An unmapped ordinary import is emitted as an import-only finding;
+  downstream scoring should treat import-only findings as warn-only. Unmapped `google`, `azure`,
+  `zope`, and `backports` namespace roots produce a warning instead of a guessed package name.
+- Changes in `setup.py`, `setup.cfg`, and `Pipfile` produce a manual-review warning; their
+  dependency syntax is not interpreted, and `setup.py` imports are not treated as dependencies.
+
+Direct URLs, VCS/editable requirements, include directives, dynamic dependencies, Poetry dependency
+tables, malformed requirements, and malformed TOML are skipped with a file/line warning when their
+changed lines can be located. Global package index options receive a dedicated manual-review
+warning; supported option-only flags that do not identify a package are ignored. Included
+requirements files must be passed separately as changed files. A head Python syntax error produces
+a warning; if only the base file cannot be parsed, its imports are treated as empty and a warning is
+emitted. The extractor does not access the network, resolve markers, infer imports from unchanged
+code, install packages, or execute project code.
+
+To keep processing bounded, non-Python changed files are skipped with a warning when their combined
+base and head content exceeds 2,000 lines or 1,000,000 characters. Python files use AST comparison
+and are subject to the 1,000,000-character cap but not the line cap. The extractor stops and
+returns one warning without partial candidates when the input exceeds 1,000 changed files or
+20,000,000 combined base/head characters.
+
+## PyPI registry lookup
+
+`slopguard.registry.PyPIClient` queries the public project JSON endpoint at
+`https://pypi.org/pypi/<normalized-name>/json`. The
+[PyPI JSON API documentation](https://docs.pypi.org/api/json/) describes this response as project
+metadata and release information. SlopGuard reads JSON only; it never fetches distribution URLs,
+installs a package, imports it, or executes candidate code.
+
+### Returned metadata
+
+The response parser extracts:
+
+- `first_release_at` and `latest_release_at`: earliest and latest valid upload timestamps found
+  across release files. These dates are an age proxy, not proof that a project was created or
+  maintained on those exact dates.
+- `release_count`: number of release versions with at least one uploaded file. Empty release
+  entries are excluded.
+- `project_urls`: valid HTTP(S) links from PyPI's `info.project_urls`.
+- `maintainer_hints`: the public maintainer label and owner/maintainer names exposed by PyPI, when
+  available.
+- `source_hints`: project URLs labeled as source/repository/code, plus common source-host links.
+
+PyPI currently documents the project `releases` object as deprecated and recommends the Index API
+when release listing is needed. If the key is absent, SlopGuard reports release count and upload
+dates as unknown while preserving the successful `exists` result. PyPI's JSON API documentation
+also notes that metadata comes from values supplied at upload and may not match the uploaded files'
+contents.
+
+### Lookup states
+
+| State | Meaning | `registry_exists` |
+| --- | --- | --- |
+| `exists` | HTTP 200 with valid project metadata and a matching project name. | `true` |
+| `not_found` | PyPI returned HTTP 404. | `false` |
+| `transient_error` | Timeout, transport failure, rate limit, or other non-success HTTP response. | `null` |
+| `malformed_response` | Invalid JSON or response structure, a mismatched project name, or a response exceeding the size cap. | `null` |
+
+Unknown states do not add not-found evidence and do not alter the candidate's risk score or
+severity. A confirmed 404 is recorded as a sourced fact; it is not, by itself, proof of malicious
+intent.
+
+### Request bounds and diagnostics
+
+Each `PyPIClient` has a 3-second request timeout, a 2 MB response cap, one retry by default, and
+exponential backoff from 100 ms capped at 500 ms. HTTP 429 and 5xx responses are retried; a numeric
+or HTTP-date `Retry-After` value is honored only up to the same cap. All results, including
+failures, are cached by normalized name for that client instance, which is the per-run cache
+boundary.
+
+`registry_diagnostics` records total latency including retries and backoff, attempt count, final
+HTTP status, available `Retry-After`, `RateLimit-Remaining`, and `X-RateLimit-Remaining` headers,
+and a bounded error/recovery note. The implementation uses an injectable HTTP transport so tests
+can cover all states without network access. The complete example is
+[`registry-result.json`](tests/fixtures/contract/registry-result.json).
+
+## Security model
+
+Dependency manifests, changed Python source, and PyPI responses are treated as untrusted data.
+SlopGuard parses them but never executes project code or retrieved packages. Registry access is
+read-only and bounded by time, retries, and response size. Tests use checked-in fixtures and
+controlled transports; they do not call PyPI. See [SECURITY.md](SECURITY.md) for the threat scope,
+limitations, and private vulnerability-reporting instructions.
