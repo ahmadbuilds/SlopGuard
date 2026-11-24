@@ -62,6 +62,8 @@ merge. It reads registry metadata only. Information Security term project, FAST-
   parsing, and merging registry evidence into results.
 - `src/slopguard/similarity.py` and `src/slopguard/data/`: offline look-alike detection against the
   packaged popularity snapshot.
+- `src/slopguard/config.py`: immutable validated configuration and discovery.
+- `src/slopguard/scoring.py`: explainable risk contributions and policy decisions.
 - `examples/slopguard.toml`: the configuration users copy.
 - `.github/workflows/ci.yml`: lint and tests on every PR and push to `main`.
   `.github/workflows/release.yml`: on a `v*` tag, reruns the checks, publishes a GitHub Release
@@ -69,7 +71,6 @@ merge. It reads registry metadata only. Information Security term project, FAST-
 
 ## Planned modules (each lands with its Linear issue)
 
-- `src/slopguard/scoring.py`, `config.py`: risk score, thresholds, allow-list, decision (SG-05).
 - `src/slopguard/cli.py` and `action.yml`: the `slopguard scan` entry point and the published
   GitHub Action; the CLI parses arguments, calls the scan and formats output, with no business
   logic (SG-06). `examples/workflow.yml` lands with it.
