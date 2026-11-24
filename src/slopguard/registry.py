@@ -5,10 +5,12 @@ from __future__ import annotations
 import errno
 import http.client
 import io
+import queue
 import re
 import select
 import socket
 import ssl
+import threading
 import time
 from collections.abc import Callable, Mapping
 from copy import deepcopy
@@ -27,6 +29,7 @@ DEFAULT_TIMEOUT_SECONDS = 3.0
 _READ_CHUNK_BYTES = 64 * 1024
 _MAX_HEADER_BYTES = 64 * 1024
 _NORMALIZED_NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
+_DNS_RESOLUTION_SLOT = threading.BoundedSemaphore(1)
 
 
 @dataclass(frozen=True)
@@ -369,24 +372,28 @@ class _DeadlineReader(io.RawIOBase):
     def readinto(self, buffer: bytearray) -> int | None:
         if not buffer:
             return 0
+        wait_readable = True
         while True:
-            _wait_for_socket(self._connection, self._deadline, readable=True)
+            _wait_for_socket(
+                self._connection,
+                self._deadline,
+                readable=wait_readable,
+                writable=not wait_readable,
+            )
             try:
                 return self._connection.recv_into(buffer)
             except ssl.SSLWantReadError:
-                continue
+                wait_readable = True
             except ssl.SSLWantWriteError:
-                _wait_for_socket(self._connection, self._deadline, writable=True)
+                wait_readable = False
             except BlockingIOError:
-                continue
+                wait_readable = True
 
 
 def _connect_tls(host: str, port: int, deadline: float) -> ssl.SSLSocket:
     """Connect and complete TLS without blocking past the request deadline."""
 
-    addresses = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
-    if time.monotonic() >= deadline:
-        raise TimeoutError("PyPI request exceeded the total request deadline.")
+    addresses = _resolve_addresses(host, port, deadline)
 
     pending_errors = {
         errno.EINPROGRESS,
@@ -436,6 +443,49 @@ def _connect_tls(host: str, port: int, deadline: float) -> ssl.SSLSocket:
     if last_error is not None:
         raise last_error
     raise OSError("No network address was available for PyPI.")
+
+
+def _resolve_addresses(
+    host: str, port: int, deadline: float
+) -> list[tuple[socket.AddressFamily, socket.SocketKind, int, str, tuple[str, int]]]:
+    """Resolve DNS on one bounded daemon worker so a stalled resolver cannot block lookup."""
+
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError("PyPI request exceeded the total request deadline.")
+    if not _DNS_RESOLUTION_SLOT.acquire(blocking=False):
+        raise TimeoutError("PyPI request exceeded the total request deadline.")
+
+    result: queue.Queue[tuple[object | None, OSError | None]] = queue.Queue(maxsize=1)
+
+    def resolve() -> None:
+        try:
+            result.put((socket.getaddrinfo(host, port, type=socket.SOCK_STREAM), None))
+        except OSError as error:
+            result.put((None, error))
+        finally:
+            _DNS_RESOLUTION_SLOT.release()
+
+    worker = threading.Thread(target=resolve, name="slopguard-dns", daemon=True)
+    try:
+        worker.start()
+    except RuntimeError:
+        _DNS_RESOLUTION_SLOT.release()
+        raise
+
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError("PyPI request exceeded the total request deadline.")
+    try:
+        addresses, error = result.get(timeout=remaining)
+    except queue.Empty as timeout_error:
+        raise TimeoutError("PyPI request exceeded the total request deadline.") from timeout_error
+    if time.monotonic() >= deadline:
+        raise TimeoutError("PyPI request exceeded the total request deadline.")
+    if error is not None:
+        raise error
+    assert isinstance(addresses, list)
+    return addresses
 
 
 def _send_with_deadline(connection: ssl.SSLSocket, payload: bytes, deadline: float) -> None:

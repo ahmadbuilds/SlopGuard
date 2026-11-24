@@ -1,5 +1,8 @@
 """Controlled-response tests for the PyPI HTTP client."""
 
+import ssl
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -196,6 +199,60 @@ def test_slow_response_headers_obey_total_deadline(monkeypatch: pytest.MonkeyPat
 
     assert slow_socket.read_count == 1
     assert selector_timeouts == pytest.approx([1.0, 0.4])
+
+
+def test_tls_reader_waits_for_writable_socket_after_want_write(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    readiness: list[tuple[bool, bool]] = []
+
+    class WantsWriteSocket:
+        calls = 0
+
+        def recv_into(self, buffer: bytearray) -> int:
+            self.calls += 1
+            if self.calls == 1:
+                raise ssl.SSLWantWriteError()
+            buffer[0] = ord("x")
+            return 1
+
+    def record_readiness(_connection, _deadline, *, readable=False, writable=False):
+        readiness.append((readable, writable))
+
+    monkeypatch.setattr(registry, "_wait_for_socket", record_readiness)
+    output = bytearray(1)
+    reader = registry._DeadlineReader(WantsWriteSocket(), time.monotonic() + 1)
+
+    assert reader.readinto(output) == 1
+    assert output == b"x"
+    assert readiness == [(True, False), (False, True)]
+
+
+def test_dns_resolution_obeys_total_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
+    entered = threading.Event()
+    release = threading.Event()
+    resolved = threading.Event()
+
+    def slow_getaddrinfo(*_args, **_kwargs):
+        entered.set()
+        release.wait()
+        resolved.set()
+        return []
+
+    monkeypatch.setattr(registry.socket, "getaddrinfo", slow_getaddrinfo)
+    release_timer = threading.Timer(0.25, release.set)
+    started_at = time.monotonic()
+    release_timer.start()
+    try:
+        with pytest.raises(TimeoutError, match="total request deadline"):
+            registry._resolve_addresses("pypi.org", 443, started_at + 0.03)
+        elapsed = time.monotonic() - started_at
+    finally:
+        release_timer.join()
+
+    assert entered.is_set()
+    assert elapsed < 0.2
+    assert resolved.wait(timeout=1)
 
 
 def test_deadline_http_response_adapter_reads_project_json(
