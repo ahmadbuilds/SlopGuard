@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/ahmadbuilds/SlopGuard/blob/main/schemas/dependency-result.schema.json",
+  "$id": "https://github.com/ahmadbuilds/SlopGuard/blob/main/src/slopguard/schemas/dependency-result.schema.json",
   "title": "SlopGuard dependency result",
   "description": "Versioned result contract for one requested PyPI dependency.",
   "type": "object",

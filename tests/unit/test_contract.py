@@ -6,9 +6,11 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator
 
-ROOT = Path(__file__).resolve().parents[1]
-SCHEMA = json.loads((ROOT / "schemas/dependency-result.schema.json").read_text(encoding="utf-8"))
-SAMPLE = json.loads((ROOT / "examples/result.json").read_text(encoding="utf-8"))
+from slopguard.contracts import load_result_schema
+
+ROOT = Path(__file__).resolve().parents[2]
+SCHEMA = load_result_schema()
+SAMPLE = json.loads((ROOT / "tests/fixtures/contract/result.json").read_text(encoding="utf-8"))
 VALIDATOR = Draft202012Validator(SCHEMA)
 
 

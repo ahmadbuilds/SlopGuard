@@ -1,11 +1,13 @@
 """Typed names for the public dependency-result contract.
 
 The JSON Schema is authoritative for serialized data. Keep these types aligned
-with ``schemas/dependency-result.schema.json`` when changing the contract.
+with ``src/slopguard/schemas/dependency-result.schema.json`` when changing the contract.
 """
 
 from __future__ import annotations
 
+import json
+from importlib.resources import files
 from typing import Literal, NotRequired, TypedDict
 
 Severity = Literal["info", "low", "medium", "high", "critical"]
@@ -82,3 +84,14 @@ class DependencyResult(TypedDict):
     registry_status: NotRequired[RegistryLookupStatus]
     registry_metadata: NotRequired[RegistryMetadata]
     registry_diagnostics: NotRequired[RegistryDiagnostics]
+
+
+def load_result_schema() -> dict[str, object]:
+    """Load the packaged JSON Schema for dependency results."""
+
+    schema_resource = files("slopguard").joinpath("schemas", "dependency-result.schema.json")
+    with schema_resource.open("r", encoding="utf-8") as schema_file:
+        schema = json.load(schema_file)
+    if not isinstance(schema, dict):
+        raise ValueError("The packaged dependency-result schema must be a JSON object.")
+    return schema
