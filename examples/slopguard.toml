@@ -10,3 +10,13 @@ block_threshold = 85
 # Scores are normalized to 0..100. Severity mapping is documented in ARCHITECTURE.md.
 high_threshold = 60
 critical_threshold = 85
+
+[similarity]
+# Compare against this many entries from the popularity snapshot.
+top_n = 5000
+# Skip dependency names shorter than this length.
+min_length = 4
+# Name length thresholds paired with their maximum edit distances.
+max_distance_by_length = [[4, 1], [8, 2]]
+# Keep at most this many look-alike names per dependency.
+max_matches = 3
