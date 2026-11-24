@@ -25,6 +25,10 @@ The contract is versioned independently from the package and is intended to be t
 
 For changed-file extraction behavior and supported syntax, see [the extraction guide](docs/extraction.md).
 
+### Supported dependency syntax
+
+SlopGuard extracts additions from requirements and constraints files, PEP 621 and PEP 735 dependency arrays and build requirements in `pyproject.toml`, and newly introduced absolute Python imports. Requirements continuations and hashes are handled; common import names map to their PyPI distributions. Changes in `setup.py`, `setup.cfg`, and `Pipfile`, as well as package index options and unmapped namespace imports, receive visible manual-review warnings. Import-only candidates are intended for warn-only scoring. The extractor is offline and never executes project code. See the [extraction guide](docs/extraction.md) for details and limits.
+
 Current policy assumptions are conservative and need confirmation from the project team: findings default to `warn`; explicit `block` mode may block only when the configured risk threshold is met using sufficient evidence. Lookup errors or incomplete evidence must never be interpreted as proof that a package is absent or malicious.
 
 ## Configuration
