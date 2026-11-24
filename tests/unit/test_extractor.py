@@ -6,15 +6,16 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator
 
+from slopguard.contracts import load_result_schema
 from slopguard.extractor import (
     ChangedFile,
     extract_dependencies,
     local_modules_from_paths,
 )
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "tests" / "fixtures"
-SCHEMA = json.loads((ROOT / "schemas/dependency-result.schema.json").read_text(encoding="utf-8"))
+SCHEMA = load_result_schema()
 VALIDATOR = Draft202012Validator(SCHEMA)
 
 
@@ -531,7 +532,7 @@ def test_changed_file_count_limit_stops_consuming_a_large_iterable() -> None:
 
 def test_extraction_example_matches_shared_contract() -> None:
     example = json.loads(
-        (ROOT / "examples" / "extracted-dependency.json").read_text(encoding="utf-8")
+        (FIXTURES / "contract" / "extracted-dependency.json").read_text(encoding="utf-8")
     )
 
     VALIDATOR.validate(example)

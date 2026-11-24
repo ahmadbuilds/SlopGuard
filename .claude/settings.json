@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run pytest*)",
+      "Bash(uv run ruff *)",
+      "Bash(uv sync *)",
+      "Bash(make check)",
+      "Bash(make test)",
+      "Bash(make lint)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Bash(git push --force *)"
+    ]
+  }
+}

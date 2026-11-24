@@ -1,10 +1,5 @@
 # Copy this file to slopguard.toml. Values shown here are safe defaults.
 
-[registry]
-name = "pypi"
-base_url = "https://pypi.org/pypi"
-timeout_seconds = 5
-
 [policy]
 # MVP modes: "warn" (default) or "block". Block only when evidence is
 # sufficient and risk_score meets block_threshold. Unknown lookup results warn.
@@ -12,6 +7,6 @@ mode = "warn"
 block_threshold = 85
 
 [scoring]
-# Scores are normalized to 0..100. Severity mapping is documented in docs/contract.md.
+# Scores are normalized to 0..100. Severity mapping is documented in ARCHITECTURE.md.
 high_threshold = 60
 critical_threshold = 85

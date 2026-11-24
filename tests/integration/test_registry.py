@@ -10,7 +10,7 @@ import pytest
 import slopguard.registry as registry
 from slopguard.registry import HTTPResponse, PyPIClient
 
-SAMPLE = (Path(__file__).resolve().parent / "fixtures/pypi/sampleproject.json").read_bytes()
+SAMPLE = (Path(__file__).resolve().parents[1] / "fixtures/pypi/sampleproject.json").read_bytes()
 
 
 def _client(response: HTTPResponse, *, clock_values: tuple[float, float] = (1.0, 1.125)):

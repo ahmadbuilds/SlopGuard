@@ -3,9 +3,11 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
+.uv-cache/
+.pre-commit-cache/
 build/
 dist/
 *.egg-info/
-.env
-.env.*
+.env*
 !.env.example
+.claude/settings.local.json

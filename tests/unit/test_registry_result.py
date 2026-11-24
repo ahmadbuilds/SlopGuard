@@ -7,16 +7,15 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator
 
+from slopguard.contracts import load_result_schema
 from slopguard.extractor import ChangedFile, extract_dependencies
 from slopguard.pypi import parse_project_response
 from slopguard.registry import HTTPResponse, PyPIClient
 from slopguard.registry_result import apply_registry_lookup
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = (ROOT / "tests/fixtures/pypi/sampleproject.json").read_bytes()
-VALIDATOR = Draft202012Validator(
-    json.loads((ROOT / "schemas/dependency-result.schema.json").read_text(encoding="utf-8"))
-)
+VALIDATOR = Draft202012Validator(load_result_schema())
 
 
 def _candidate():
@@ -99,12 +98,16 @@ def test_lookup_for_different_candidate_is_rejected() -> None:
 
 
 def test_fixture_sample_registry_result_matches_contract() -> None:
-    sample = json.loads((ROOT / "examples/registry-result.json").read_text(encoding="utf-8"))
+    sample = json.loads(
+        (ROOT / "tests/fixtures/contract/registry-result.json").read_text(encoding="utf-8")
+    )
 
     VALIDATOR.validate(sample)
 
 
 def test_lookup_parser_metadata_matches_fixture_sample() -> None:
-    expected = json.loads((ROOT / "examples/registry-result.json").read_text(encoding="utf-8"))
+    expected = json.loads(
+        (ROOT / "tests/fixtures/contract/registry-result.json").read_text(encoding="utf-8")
+    )
 
     assert parse_project_response(FIXTURE) == expected["registry_metadata"]

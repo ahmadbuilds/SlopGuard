@@ -7,7 +7,7 @@ import pytest
 
 from slopguard.pypi import PyPIMetadataError, parse_project_response
 
-FIXTURES = Path(__file__).resolve().parent / "fixtures" / "pypi"
+FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "pypi"
 
 
 def test_parse_project_metadata_and_release_history() -> None:
