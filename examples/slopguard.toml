@@ -1,15 +1,53 @@
-# Copy this file to slopguard.toml. Values shown here are safe defaults.
+# Copy this file to slopguard.toml. Each value is the default.
+version = 1
 
 [policy]
-# MVP modes: "warn" (default) or "block". Block only when evidence is
-# sufficient and risk_score meets block_threshold. Unknown lookup results warn.
+# Library policy defaults to warning without blocking.
 mode = "warn"
-block_threshold = 85
+# Scores at or above this value produce a warning.
+warn_threshold = 40
+# Scores at or above this value can block when mode is "block".
+block_threshold = 80
+# Unknown registry results warn by default; "pass" removes that floor.
+on_unknown = "warn"
 
-[scoring]
-# Scores are normalized to 0..100. Severity mapping is documented in ARCHITECTURE.md.
-high_threshold = 60
-critical_threshold = 85
+[scoring.severity]
+# Lower bound for low severity.
+low = 20
+# Lower bound for medium severity.
+medium = 40
+# Lower bound for high severity.
+high = 60
+# Lower bound for critical severity.
+critical = 80
+
+[scoring.weights]
+# Points for a PyPI not-found result.
+not_found = 60
+# Maximum points before distance and rank scaling.
+lookalike = 35
+# Points for a package first released within the configured age window.
+new_package = 25
+# Points for a package with very few release versions.
+few_releases = 10
+# Points for an existing package without source links.
+missing_source = 10
+
+[scoring.signals]
+# Age window in days for the new-package signal.
+new_package_days = 30
+# Release count at or below which the few-releases signal applies.
+few_releases_max = 1
+# Distance and multiplier pairs for edit matches.
+distance_factors = [[1, 1.0], [2, 0.5]]
+# Multiplier for names differing only by hyphen separators.
+separator_factor = 1.0
+# Ranks up to this value receive full strength.
+full_strength_rank = 100
+# Rank multiplier for packages at or above full strength.
+full_rank_factor = 1.0
+# Minimum rank multiplier at the end of the configured popularity window.
+min_rank_factor = 0.3
 
 [similarity]
 # Compare against this many entries from the popularity snapshot.
@@ -20,3 +58,9 @@ min_length = 4
 max_distance_by_length = [[4, 1], [8, 2]]
 # Keep at most this many look-alike names per dependency.
 max_matches = 3
+
+# Example exception. Prefer a short expiry and explain why it is needed.
+# [[allowlist]]
+# name = "internal-package"
+# reason = "Approved internal dependency until its public release is available."
+# expires = 2027-01-31
