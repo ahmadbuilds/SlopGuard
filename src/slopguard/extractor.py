@@ -22,17 +22,9 @@ from packaging.utils import canonicalize_name
 
 from . import CONTRACT_VERSION
 from .contracts import DependencyResult, SourceLocation
+from .import_names import NAMESPACE_ROOTS, distribution_for_import
 
 SourceType = Literal["requirements", "pyproject", "import"]
-
-IMPORT_TO_DISTRIBUTION = {
-    "bs4": "beautifulsoup4",
-    "cv2": "opencv-python",
-    "dateutil": "python-dateutil",
-    "PIL": "Pillow",
-    "sklearn": "scikit-learn",
-    "yaml": "PyYAML",
-}
 MAX_DIFF_INPUT_LINES = 2_000
 MAX_DIFF_INPUT_CHARACTERS = 1_000_000
 MAX_CHANGED_FILES = 1_000
@@ -65,7 +57,11 @@ class ExtractionResult:
     warnings: tuple[ExtractionWarning, ...]
 
 
-def extract_dependencies(changed_files: Iterable[ChangedFile]) -> ExtractionResult:
+def extract_dependencies(
+    changed_files: Iterable[ChangedFile],
+    *,
+    local_modules: Iterable[str] | None = None,
+) -> ExtractionResult:
     """Return dependencies added in requirements, pyproject, and Python imports.
 
     Candidate rows use SG-01's result shape. Registry state is unknown and the
@@ -101,13 +97,16 @@ def extract_dependencies(changed_files: Iterable[ChangedFile]) -> ExtractionResu
         materialized_files.append(changed_file)
 
     changed_files = tuple(materialized_files)
-    local_modules = _local_python_module_names(changed_files)
+    local_module_names = _local_python_module_names(changed_files)
+    if local_modules is not None:
+        local_module_names.update(name.split(".", maxsplit=1)[0] for name in local_modules)
     candidates: dict[str, DependencyResult] = {}
     baseline: dict[str, set[str]] = {}
     warnings: list[ExtractionWarning] = []
 
     for changed_file in changed_files:
-        if _diff_input_exceeds_limits(changed_file):
+        is_python = PurePosixPath(changed_file.path).suffix.lower() == ".py"
+        if _diff_input_exceeds_limits(changed_file, ignore_line_limit=is_python):
             warnings.append(
                 ExtractionWarning(
                     changed_file.path,
@@ -117,7 +116,7 @@ def extract_dependencies(changed_files: Iterable[ChangedFile]) -> ExtractionResu
             )
             continue
 
-        if changed_file.base_content:
+        if changed_file.base_content and not is_python:
             baseline_candidates: dict[str, DependencyResult] = {}
             base_lines = {
                 line_number: line
@@ -128,22 +127,29 @@ def extract_dependencies(changed_files: Iterable[ChangedFile]) -> ExtractionResu
                 base_lines,
                 baseline_candidates,
                 [],
-                local_modules,
+                local_module_names,
             )
             for name, candidate in baseline_candidates.items():
                 baseline.setdefault(name, set()).update(
                     location["source_type"] for location in candidate["source_locations"]
                 )
 
+        if is_python:
+            if PurePosixPath(changed_file.path).name.lower() == "setup.py":
+                added_lines = _added_lines(changed_file.base_content, changed_file.content)
+                if added_lines:
+                    _extract_file(
+                        changed_file, added_lines, candidates, warnings, local_module_names
+                    )
+                continue
+            _extract_imports(changed_file, candidates, warnings, local_module_names)
+            continue
+
         added_lines = _added_lines(changed_file.base_content, changed_file.content)
         if not added_lines:
             continue
-        _extract_file(changed_file, added_lines, candidates, warnings, local_modules)
+        _extract_file(changed_file, added_lines, candidates, warnings, local_module_names)
 
-    # A line reformat can make an unchanged PEP 621 dependency look newly added
-    # in a textual diff. Existing manifest dependencies suppress new manifest
-    # entries; existing imports suppress import-only candidates. An old import
-    # must not hide a newly declared manifest dependency.
     candidates = {
         name: candidate
         for name, candidate in candidates.items()
@@ -153,10 +159,14 @@ def extract_dependencies(changed_files: Iterable[ChangedFile]) -> ExtractionResu
     return ExtractionResult(tuple(candidates.values()), tuple(warnings))
 
 
-def _diff_input_exceeds_limits(changed_file: ChangedFile) -> bool:
+def _diff_input_exceeds_limits(
+    changed_file: ChangedFile, *, ignore_line_limit: bool = False
+) -> bool:
     total_characters = len(changed_file.base_content) + len(changed_file.content)
     if total_characters > MAX_DIFF_INPUT_CHARACTERS:
         return True
+    if ignore_line_limit:
+        return False
     total_lines = len(changed_file.base_content.splitlines()) + len(
         changed_file.content.splitlines()
     )
@@ -180,18 +190,34 @@ def _candidate_already_present(
 
 
 def _local_python_module_names(changed_files: tuple[ChangedFile, ...]) -> set[str]:
+    return local_modules_from_paths(
+        changed_file.path for changed_file in changed_files if changed_file.content
+    )
+
+
+def local_modules_from_paths(paths: Iterable[str], project_name: str | None = None) -> set[str]:
+    """Return top-level Python module names represented by repository paths."""
+
     names: set[str] = set()
-    for changed_file in changed_files:
-        path = PurePosixPath(changed_file.path)
-        if path.suffix.lower() != ".py" or not changed_file.content:
+    for value in paths:
+        path = PurePosixPath(value.replace("\\", "/"))
+        if path.suffix.lower() != ".py":
             continue
-        parts = [part for part in path.with_suffix("").parts if part not in {"/", "."}]
+        parts = list(path.parts)
         if parts and parts[0] in {"src", "lib"}:
             parts = parts[1:]
-        if parts and parts[-1] == "__init__":
-            parts = parts[:-1]
-        for end in range(1, len(parts) + 1):
-            names.add(".".join(parts[:end]))
+        if not parts:
+            continue
+        top = parts[0] if len(parts) > 1 else path.stem
+        if top != "__init__":
+            names.add(top)
+        stem = path.stem
+        if stem != "__init__":
+            names.add(stem)
+    if project_name:
+        import_name = project_name.lower().replace("-", "_")
+        if import_name:
+            names.add(import_name)
     return names
 
 
@@ -202,17 +228,26 @@ def _extract_file(
     warnings: list[ExtractionWarning],
     local_modules: set[str],
 ) -> None:
-    path = PurePosixPath(changed_file.path)
+    path = PurePosixPath(changed_file.path.replace("\\", "/"))
     filename = path.name.lower()
 
     if filename == "pyproject.toml":
         _extract_pyproject(changed_file, lines, candidates, warnings)
     elif path.suffix.lower() in {".txt", ".in"} and (
-        "requirement" in filename or "constraint" in filename
+        "requirement" in filename or "constraint" in filename or "requirements" in path.parts
     ):
         _extract_requirements(changed_file, lines, candidates, warnings)
+    elif filename in {"setup.py", "setup.cfg", "pipfile"}:
+        line_number = min(lines) if lines else 1
+        warnings.append(
+            ExtractionWarning(
+                changed_file.path,
+                line_number,
+                f"Dependency changes in {path.name} are not analysed by SlopGuard; review them manually.",
+            )
+        )
     elif path.suffix.lower() == ".py":
-        _extract_imports(changed_file, lines, candidates, warnings, local_modules)
+        _extract_imports(changed_file, candidates, warnings, local_modules)
 
 
 def _added_lines(base_content: str, content: str) -> dict[int, str]:
@@ -235,7 +270,27 @@ def _extract_requirements(
     candidates: dict[str, DependencyResult],
     warnings: list[ExtractionWarning],
 ) -> None:
-    for line_number, raw_line in added_lines.items():
+    physical_lines = changed_file.content.splitlines()
+    logical_lines: list[tuple[int, str, bool]] = []
+    index = 0
+    while index < len(physical_lines):
+        start = index
+        chunks: list[str] = []
+        added = False
+        while index < len(physical_lines):
+            raw = physical_lines[index]
+            added = added or index + 1 in added_lines
+            stripped = raw.rstrip()
+            continued = stripped.endswith("\\")
+            chunks.append(stripped[:-1] if continued else raw)
+            index += 1
+            if not continued:
+                break
+        logical_lines.append((start + 1, " ".join(chunks), added))
+
+    for line_number, raw_line, is_added in logical_lines:
+        if not is_added:
+            continue
         line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
@@ -258,6 +313,25 @@ def _extract_requirements(
                 )
             )
             continue
+
+        if re.match(
+            r"^(?:-i|--index-url|--extra-index-url|-f|--find-links|--trusted-host)(?:\s|=|$)",
+            line,
+        ):
+            warnings.append(
+                ExtractionWarning(
+                    changed_file.path,
+                    line_number,
+                    "Package index option changes where packages are installed from; review it manually.",
+                )
+            )
+            continue
+        if re.match(
+            r"^(?:--pre|--require-hashes|--no-binary|--only-binary|--prefer-binary)(?:\s|=|$)", line
+        ):
+            continue
+
+        line = re.sub(r"\s+--hash(?:=|\s+)[^\s]+", "", line).strip()
 
         line = re.split(r"\s+#", line, maxsplit=1)[0].strip()
         if not line:
@@ -323,11 +397,12 @@ def _extract_pyproject(
 
     project = document.get("project", {})
     dynamic = project.get("dynamic", []) if isinstance(project, dict) else []
+    dynamic_line = _pyproject_key_line(changed_file.content, "project", "dynamic")
     if not isinstance(dynamic, list) or not all(isinstance(value, str) for value in dynamic):
         warnings.append(
             ExtractionWarning(
                 changed_file.path,
-                None,
+                dynamic_line,
                 "The project.dynamic value is invalid; dynamic dependencies cannot be resolved.",
             )
         )
@@ -335,7 +410,7 @@ def _extract_pyproject(
         warnings.append(
             ExtractionWarning(
                 changed_file.path,
-                None,
+                dynamic_line,
                 "Dynamic PEP 621 dependencies cannot be resolved from this file and were skipped.",
             )
         )
@@ -354,8 +429,6 @@ def _extract_pyproject(
             warnings,
         )
 
-    # Poetry's table format has different semantics from PEP 621; surface it
-    # clearly rather than silently treating its values as package names.
     table: str | None = None
     for line_number, line in enumerate(changed_file.content.splitlines(), start=1):
         header = re.fullmatch(r"\s*\[([^\[\]]+)\]\s*(?:#.*)?", line)
@@ -406,7 +479,12 @@ def _pep621_dependency_entries(
             r"\s*(?:([A-Za-z0-9_.-]+)|\"([^\"]+)\"|'([^']+)')\s*=\s*(.*)",
             line,
         )
-        if not assignment or table not in {"project", "project.optional-dependencies"}:
+        if not assignment or table not in {
+            "project",
+            "project.optional-dependencies",
+            "dependency-groups",
+            "build-system",
+        }:
             index += 1
             continue
 
@@ -415,6 +493,8 @@ def _pep621_dependency_entries(
             (table == "project" and key == "dependencies")
             or (table == "project" and key.startswith("optional-dependencies."))
             or table == "project.optional-dependencies"
+            or (table == "dependency-groups" and bool(key))
+            or (table == "build-system" and key == "requires")
         )
         is_inline_optional_dependencies = table == "project" and key == "optional-dependencies"
         value_text = assignment.group(4)
@@ -480,26 +560,49 @@ def _pep621_dependency_entries(
             continue
 
         source_line = content.count("\n", 0, start_offset) + 1
-        literals = _toml_string_literals(array_text, source_line)
-        if (
-            not isinstance(parsed_array, list)
-            or not all(isinstance(value, str) for value in parsed_array)
-            or [value for value, _line in literals] != parsed_array
-        ):
+        array_items = _toml_array_items(array_text, source_line)
+        is_dependency_group = table == "dependency-groups"
+        valid_items = isinstance(parsed_array, list) and array_items is not None
+        extracted_items: list[tuple[str, int]] = []
+        if valid_items:
+            for value, item_line in array_items:
+                if isinstance(value, str):
+                    extracted_items.append((value, item_line))
+                elif (
+                    is_dependency_group
+                    and isinstance(value, dict)
+                    and set(value) == {"include-group"}
+                    and isinstance(value["include-group"], str)
+                ):
+                    continue
+                else:
+                    valid_items = False
+                    break
+        if not valid_items:
             warnings.append(
                 ExtractionWarning(
                     path,
                     index + 1,
-                    "Dependency array contains unsupported non-string values and was skipped.",
+                    "Dependency array contains unsupported values and was skipped.",
                 )
             )
             index = content.count("\n", 0, end_offset) + 1
             continue
-
-        entries.extend(literals)
+        entries.extend(extracted_items)
         index = content.count("\n", 0, end_offset) + 1
 
     return entries
+
+
+def _pyproject_key_line(content: str, table_name: str, key_name: str) -> int | None:
+    table: str | None = None
+    for line_number, line in enumerate(content.splitlines(), start=1):
+        header = re.fullmatch(r"\s*\[([^\[\]]+)\]\s*(?:#.*)?", line)
+        if header:
+            table = header.group(1).strip()
+        if table == table_name and re.match(rf"\s*{re.escape(key_name)}\s*=", line):
+            return line_number
+    return None
 
 
 def _capture_toml_array(content: str, start: int) -> tuple[str | None, int]:
@@ -538,31 +641,51 @@ def _toml_string_end(content: str, start: int) -> int:
     return len(content)
 
 
-def _toml_string_literals(array_text: str, first_line: int) -> list[tuple[str, int]]:
-    literals: list[tuple[str, int]] = []
-    index = 0
-    while index < len(array_text):
+def _toml_array_items(array_text: str, first_line: int) -> list[tuple[object, int]] | None:
+    """Parse top-level TOML array items while retaining each item's line."""
+
+    items: list[tuple[object, int]] = []
+    start = 1
+    index = 1
+    square_depth = 0
+    brace_depth = 0
+    while index < len(array_text) - 1:
         char = array_text[index]
         if char == "#":
             newline = array_text.find("\n", index)
-            index = len(array_text) if newline < 0 else newline + 1
+            index = len(array_text) - 1 if newline < 0 else newline
             continue
-        if char not in "\"'":
-            index += 1
+        if char in "\"'":
+            index = _toml_string_end(array_text, index)
             continue
-
-        end = _toml_string_end(array_text, index)
-        token = array_text[index:end]
+        if char == "[":
+            square_depth += 1
+        elif char == "]":
+            square_depth -= 1
+        elif char == "{":
+            brace_depth += 1
+        elif char == "}":
+            brace_depth -= 1
+        elif char == "," and square_depth == 0 and brace_depth == 0:
+            raw_item = array_text[start:index].strip()
+            if raw_item:
+                try:
+                    value = tomllib.loads(f"item = {raw_item}")["item"]
+                except tomllib.TOMLDecodeError:
+                    return None
+                line_number = first_line + array_text.count("\n", 0, start)
+                items.append((value, line_number))
+            start = index + 1
+        index += 1
+    raw_item = array_text[start:-1].strip()
+    if raw_item:
         try:
-            value = tomllib.loads(f"item = {token}")["item"]
+            value = tomllib.loads(f"item = {raw_item}")["item"]
         except tomllib.TOMLDecodeError:
-            index = end
-            continue
-        if isinstance(value, str):
-            line_number = first_line + array_text.count("\n", 0, index)
-            literals.append((value, line_number))
-        index = end
-    return literals
+            return None
+        line_number = first_line + array_text.count("\n", 0, start)
+        items.append((value, line_number))
+    return items
 
 
 def _add_requirement(
@@ -594,98 +717,79 @@ def _add_requirement(
 
 def _extract_imports(
     changed_file: ChangedFile,
-    added_lines: dict[int, str],
     candidates: dict[str, DependencyResult],
     warnings: list[ExtractionWarning],
     local_modules: set[str],
 ) -> None:
     try:
-        module = ast.parse(changed_file.content)
-    except SyntaxError:
-        for line_number, raw_line in added_lines.items():
-            if re.match(r"^\s*(?:import|from)\b", raw_line):
-                warnings.append(
-                    ExtractionWarning(
-                        changed_file.path,
-                        line_number,
-                        "Python file has syntax errors; import additions could not be parsed.",
-                    )
-                )
-        return
-
-    multiline_lines = _multiline_import_added_lines(
-        changed_file.content, added_lines, changed_file.path, warnings
-    )
-    import_nodes = sorted(
-        (node for node in ast.walk(module) if isinstance(node, ast.Import | ast.ImportFrom)),
-        key=lambda node: (node.lineno, node.col_offset),
-    )
-    for node in import_nodes:
-        line_number = node.lineno
-        end_line = getattr(node, "end_lineno", line_number)
-        changed_import_lines = [
-            added_line for added_line in added_lines if line_number <= added_line <= end_line
-        ]
-        if not changed_import_lines:
-            continue
-        if line_number in multiline_lines or end_line > line_number:
-            continue
-
-        if isinstance(node, ast.Import):
-            import_names = [alias.name for alias in node.names]
-        elif isinstance(node, ast.ImportFrom):
-            if node.level or not node.module:
-                continue
-            import_names = [node.module]
-        else:
-            continue
-
-        for full_import_name in import_names:
-            import_name = full_import_name.split(".", maxsplit=1)[0]
-            if import_name in sys.stdlib_module_names:
-                continue
-            if full_import_name in local_modules or import_name in local_modules:
-                continue
-            distribution = IMPORT_TO_DISTRIBUTION.get(import_name, import_name)
-            _add_candidate(
-                candidates,
-                import_name,
+        head_module = ast.parse(changed_file.content)
+    except SyntaxError as error:
+        warnings.append(
+            ExtractionWarning(
                 changed_file.path,
-                line_number,
-                "import",
-                normalized_name=distribution,
+                error.lineno,
+                "Python file has syntax errors; import additions could not be parsed.",
             )
-
-
-def _multiline_import_added_lines(
-    content: str,
-    added_lines: dict[int, str],
-    path: str,
-    warnings: list[ExtractionWarning],
-) -> set[int]:
+        )
+        return
     try:
-        module = ast.parse(content)
-    except SyntaxError:
-        return set()
+        base_module = ast.parse(changed_file.base_content)
+    except SyntaxError as error:
+        warnings.append(
+            ExtractionWarning(
+                changed_file.path,
+                error.lineno,
+                "Base Python file has syntax errors; existing imports were treated as empty.",
+            )
+        )
+        base_module = ast.Module(body=[], type_ignores=[])
 
-    unsupported: set[int] = set()
-    for node in ast.walk(module):
-        if not isinstance(node, ast.Import | ast.ImportFrom):
+    def imports_by_distribution(module: ast.Module) -> dict[str, tuple[str, int]]:
+        found: dict[str, tuple[str, int]] = {}
+        nodes = sorted(
+            (node for node in ast.walk(module) if isinstance(node, ast.Import | ast.ImportFrom)),
+            key=lambda node: (node.lineno, node.col_offset),
+        )
+        for node in nodes:
+            if isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names]
+            elif node.level or not node.module or node.module == "__future__":
+                continue
+            else:
+                names = [node.module]
+            for name in names:
+                root_name = name.split(".", maxsplit=1)[0]
+                if root_name in sys.stdlib_module_names or root_name in local_modules:
+                    continue
+                distribution = distribution_for_import(name)
+                resolved_name = str(canonicalize_name(distribution or root_name))
+                found.setdefault(resolved_name, (name, node.lineno))
+        return found
+
+    base_imports = imports_by_distribution(base_module)
+    head_imports = imports_by_distribution(head_module)
+    for resolved_name, (full_name, line_number) in head_imports.items():
+        if resolved_name in base_imports:
             continue
-        end_line = getattr(node, "end_lineno", node.lineno)
-        if end_line <= node.lineno:
-            continue
-        new_lines = [line for line in added_lines if node.lineno <= line <= end_line]
-        for line_number in new_lines:
-            unsupported.add(line_number)
+        root_name = full_name.split(".", maxsplit=1)[0]
+        distribution = distribution_for_import(full_name)
+        if distribution is None and root_name in NAMESPACE_ROOTS:
             warnings.append(
                 ExtractionWarning(
-                    path,
+                    changed_file.path,
                     line_number,
-                    "Multiline import syntax is unsupported and was skipped.",
+                    f"Namespace import {full_name} could not be mapped to a PyPI distribution.",
                 )
             )
-    return unsupported
+            continue
+        _add_candidate(
+            candidates,
+            full_name if distribution else root_name,
+            changed_file.path,
+            line_number,
+            "import",
+            normalized_name=distribution or root_name,
+        )
 
 
 def _add_candidate(
