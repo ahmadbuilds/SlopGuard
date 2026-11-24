@@ -1,0 +1,20 @@
+{
+  "contract_version": "1.0.0",
+  "requested_name": "Reqeusts",
+  "normalized_name": "reqeusts",
+  "registry_exists": false,
+  "metadata_evidence": [
+    {
+      "kind": "similarity",
+      "summary": "The requested name was not found on PyPI; the existing 'requests' package is a close spelling candidate.",
+      "source": "https://pypi.org/project/requests/",
+      "confidence": 0.9
+    }
+  ],
+  "similarity_candidates": [
+    {"name": "requests", "similarity": 0.75, "registry_exists": true}
+  ],
+  "risk_score": 68.0,
+  "severity": "high",
+  "remediation": "Verify the intended package name with the dependency author before installation."
+}
