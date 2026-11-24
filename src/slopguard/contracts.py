@@ -35,6 +35,14 @@ class SimilarityCandidate(TypedDict):
     registry_exists: NotRequired[bool | None]
 
 
+class SourceLocation(TypedDict):
+    """Location where the dependency name was introduced."""
+
+    file: str
+    line: int
+    source_type: Literal["requirements", "pyproject", "import"]
+
+
 class DependencyResult(TypedDict):
     """Stable handoff shape shared by scanner stages and presentation."""
 
@@ -47,3 +55,4 @@ class DependencyResult(TypedDict):
     risk_score: float
     severity: Severity
     remediation: str
+    source_locations: NotRequired[list[SourceLocation]]

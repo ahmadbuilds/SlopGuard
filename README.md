@@ -14,13 +14,16 @@ python -m pip install -e ".[dev]"
 python -m slopguard.smoke
 ruff check src tests
 ruff format --check src tests
+pytest
 ```
 
-The smoke check validates `examples/result.json` against the versioned JSON Schema in `schemas/dependency-result.schema.json`.
+The smoke check validates the checked-in result and extractor-candidate examples against the versioned JSON Schema in `schemas/dependency-result.schema.json`.
 
 ## Shared result contract
 
 The contract is versioned independently from the package and is intended to be the boundary between package-name extraction, PyPI lookup, similarity scoring, and pull-request presentation. Read [the contract notes](docs/contract.md) before implementing a producer or consumer. The schema is authoritative; `examples/result.json` is a valid example.
+
+For changed-file extraction behavior and supported syntax, see [the extraction guide](docs/extraction.md).
 
 Current policy assumptions are conservative and need confirmation from the project team: findings default to `warn`; explicit `block` mode may block only when the configured risk threshold is met using sufficient evidence. Lookup errors or incomplete evidence must never be interpreted as proof that a package is absent or malicious.
 

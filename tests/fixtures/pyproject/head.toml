@@ -1,0 +1,13 @@
+[project]
+name = "fixture-project"
+version = "0.1.0"
+dependencies = [
+  "requests>=2",
+  "httpx[socks]>=0.27",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "httpx>=0.27",
+]

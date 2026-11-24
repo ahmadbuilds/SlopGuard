@@ -1,0 +1,18 @@
+{
+  "contract_version": "1.0.0",
+  "requested_name": "Fast_API",
+  "normalized_name": "fast-api",
+  "registry_exists": null,
+  "metadata_evidence": [],
+  "similarity_candidates": [],
+  "risk_score": 0.0,
+  "severity": "info",
+  "remediation": "Await registry lookup and risk analysis before making policy decisions.",
+  "source_locations": [
+    {
+      "file": "requirements.txt",
+      "line": 3,
+      "source_type": "requirements"
+    }
+  ]
+}

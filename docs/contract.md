@@ -15,6 +15,7 @@
 | `risk_score` | Aggregated risk from 0 (lowest) to 100 (highest). |
 | `severity` | `info`, `low`, `medium`, `high`, or `critical`. |
 | `remediation` | Actionable explanation for a developer reviewing the finding. |
+| `source_locations` | Optional source file, 1-based line, and source kind for PR annotations. Multiple locations are retained when the same normalized package appears more than once. |
 
 ## MVP scope and threat model assumptions
 

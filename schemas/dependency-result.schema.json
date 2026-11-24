@@ -38,7 +38,11 @@
     },
     "risk_score": {"type": "number", "minimum": 0, "maximum": 100},
     "severity": {"enum": ["info", "low", "medium", "high", "critical"]},
-    "remediation": {"type": "string", "minLength": 1}
+    "remediation": {"type": "string", "minLength": 1},
+    "source_locations": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/sourceLocation"}
+    }
   },
   "$defs": {
     "metadataEvidence": {
@@ -62,6 +66,16 @@
         "name": {"type": "string", "minLength": 1},
         "similarity": {"type": "number", "minimum": 0, "maximum": 1},
         "registry_exists": {"type": ["boolean", "null"]}
+      }
+    },
+    "sourceLocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "line", "source_type"],
+      "properties": {
+        "file": {"type": "string", "minLength": 1},
+        "line": {"type": "integer", "minimum": 1},
+        "source_type": {"enum": ["requirements", "pyproject", "import"]}
       }
     }
   }
