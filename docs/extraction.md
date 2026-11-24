@@ -11,3 +11,5 @@ Each normalized result conforms to the SG-01 dependency-result schema. At extrac
 - Single-line Python `import` and `from` statements. Standard-library imports are ignored. Known import names are mapped to distributions, including `cv2` to `opencv-python`, `PIL` to `Pillow`, and `yaml` to `PyYAML`.
 
 Direct URLs, VCS/editable requirements, include directives, multiline imports, dynamic dependencies, Poetry dependency tables, malformed requirements, and malformed TOML are skipped with a file/line warning when their changed lines can be located. Included requirements files must be passed separately as changed files. The extractor does not access the network, resolve markers, infer imports from unchanged code, install packages, or execute project code.
+
+To keep diff processing bounded, a changed file is skipped with a warning when its combined base and head content exceeds 2,000 lines or 1,000,000 characters.

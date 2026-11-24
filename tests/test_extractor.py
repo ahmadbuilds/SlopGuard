@@ -109,6 +109,32 @@ def test_malformed_pyproject_returns_warning() -> None:
     assert "Invalid TOML" in result.warnings[0].message
 
 
+def test_invalid_dynamic_type_warns_instead_of_crashing() -> None:
+    result = extract_dependencies(
+        [ChangedFile("pyproject.toml", "", '[project]\ndynamic = 1\ndependencies = ["httpx"]\n')]
+    )
+
+    assert {candidate["normalized_name"] for candidate in result.candidates} == {"httpx"}
+    assert any("project.dynamic value is invalid" in warning.message for warning in result.warnings)
+
+
+def test_dotted_optional_dependency_key_is_extracted() -> None:
+    result = extract_dependencies(
+        [
+            ChangedFile(
+                "pyproject.toml",
+                "",
+                '[project]\nname = "example"\noptional-dependencies.dev = ["risky-package>=1"]\n',
+            )
+        ]
+    )
+
+    assert {candidate["normalized_name"] for candidate in result.candidates} == {"risky-package"}
+    assert result.candidates[0]["source_locations"] == [
+        {"file": "pyproject.toml", "line": 3, "source_type": "pyproject"}
+    ]
+
+
 def test_crlf_pyproject_extracts_added_dependencies() -> None:
     base = _read(FIXTURES / "pyproject/base.toml").replace("\n", "\r\n")
     head = _read(FIXTURES / "pyproject/head.toml").replace("\n", "\r\n")
@@ -117,6 +143,17 @@ def test_crlf_pyproject_extracts_added_dependencies() -> None:
 
     assert {candidate["normalized_name"] for candidate in result.candidates} == {"httpx"}
     assert result.warnings == ()
+
+
+def test_oversized_diff_returns_warning_without_emitting_candidates() -> None:
+    base = "repeated-package==1\n" * 1_001
+    head = f"{base}new-package==1\n"
+
+    result = extract_dependencies([ChangedFile("requirements.txt", base, head)])
+
+    assert result.candidates == ()
+    assert len(result.warnings) == 1
+    assert "safe diff size limit" in result.warnings[0].message
 
 
 def test_multiline_import_addition_is_reported_as_unsupported() -> None:

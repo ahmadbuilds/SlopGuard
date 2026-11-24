@@ -33,6 +33,8 @@ IMPORT_TO_DISTRIBUTION = {
     "sklearn": "scikit-learn",
     "yaml": "PyYAML",
 }
+MAX_DIFF_INPUT_LINES = 2_000
+MAX_DIFF_INPUT_CHARACTERS = 1_000_000
 
 
 @dataclass(frozen=True)
@@ -74,6 +76,16 @@ def extract_dependencies(changed_files: Iterable[ChangedFile]) -> ExtractionResu
     warnings: list[ExtractionWarning] = []
 
     for changed_file in changed_files:
+        if _diff_input_exceeds_limits(changed_file):
+            warnings.append(
+                ExtractionWarning(
+                    changed_file.path,
+                    None,
+                    "Changed file exceeds the safe diff size limit; dependency extraction was skipped.",
+                )
+            )
+            continue
+
         if changed_file.base_content:
             base_lines = {
                 line_number: line
@@ -97,6 +109,16 @@ def extract_dependencies(changed_files: Iterable[ChangedFile]) -> ExtractionResu
     candidates = {name: candidate for name, candidate in candidates.items() if name not in baseline}
 
     return ExtractionResult(tuple(candidates.values()), tuple(warnings))
+
+
+def _diff_input_exceeds_limits(changed_file: ChangedFile) -> bool:
+    total_characters = len(changed_file.base_content) + len(changed_file.content)
+    if total_characters > MAX_DIFF_INPUT_CHARACTERS:
+        return True
+    total_lines = len(changed_file.base_content.splitlines()) + len(
+        changed_file.content.splitlines()
+    )
+    return total_lines > MAX_DIFF_INPUT_LINES
 
 
 def _extract_file(
@@ -226,7 +248,15 @@ def _extract_pyproject(
 
     project = document.get("project", {})
     dynamic = project.get("dynamic", []) if isinstance(project, dict) else []
-    if any(value in dynamic for value in ("dependencies", "optional-dependencies")):
+    if not isinstance(dynamic, list) or not all(isinstance(value, str) for value in dynamic):
+        warnings.append(
+            ExtractionWarning(
+                changed_file.path,
+                None,
+                "The project.dynamic value is invalid; dynamic dependencies cannot be resolved.",
+            )
+        )
+    elif any(value in dynamic for value in ("dependencies", "optional-dependencies")):
         warnings.append(
             ExtractionWarning(
                 changed_file.path,
@@ -306,8 +336,10 @@ def _pep621_dependency_entries(
             continue
 
         key = next(value for value in assignment.groups()[:3] if value is not None)
-        is_dependency_array = (table == "project" and key == "dependencies") or (
-            table == "project.optional-dependencies"
+        is_dependency_array = (
+            (table == "project" and key == "dependencies")
+            or (table == "project" and key.startswith("optional-dependencies."))
+            or table == "project.optional-dependencies"
         )
         if not is_dependency_array:
             index += 1
