@@ -12,6 +12,7 @@ merge. It reads registry metadata only. Information Security term project, FAST-
   (or `make check`)
 - After editing anything in `.agents/skills/` or `.agents/claude-agents/`:
   `uv run python scripts/sync_agent_skills.py`
+- Refresh the checked-in popularity data manually with `uv run python scripts/update_popular_packages.py`.
 
 ## How every code change is made
 
@@ -59,15 +60,15 @@ merge. It reads registry metadata only. Information Security term project, FAST-
   `import_names.py` maps import names to PyPI distribution names.
 - `src/slopguard/registry.py`, `pypi.py`, `registry_result.py`: bounded PyPI lookups, response
   parsing, and merging registry evidence into results.
+- `src/slopguard/similarity.py` and `src/slopguard/data/`: offline look-alike detection against the
+  packaged popularity snapshot.
 - `examples/slopguard.toml`: the configuration users copy.
 - `.github/workflows/ci.yml`: lint and tests on every PR and push to `main`.
   `.github/workflows/release.yml`: on a `v*` tag, reruns the checks, publishes a GitHub Release
   and moves the major tag (`v1`) that users reference as `ahmadbuilds/SlopGuard@v1`.
 
-## Planned modules (do not exist yet; each lands with its Linear issue)
+## Planned modules (each lands with its Linear issue)
 
-- `src/slopguard/similarity.py` and `src/slopguard/data/`: look-alike detection against a pinned
-  popular-package list (SG-04).
 - `src/slopguard/scoring.py`, `config.py`: risk score, thresholds, allow-list, decision (SG-05).
 - `src/slopguard/cli.py` and `action.yml`: the `slopguard scan` entry point and the published
   GitHub Action; the CLI parses arguments, calls the scan and formats output, with no business

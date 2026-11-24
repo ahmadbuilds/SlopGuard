@@ -58,6 +58,9 @@ class SimilarityCandidate(TypedDict):
     name: str
     similarity: float
     registry_exists: NotRequired[bool | None]
+    edit_distance: NotRequired[int]
+    popularity_rank: NotRequired[int]
+    match_kind: NotRequired[Literal["edit", "separator"]]
 
 
 class SourceLocation(TypedDict):

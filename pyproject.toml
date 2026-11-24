@@ -23,7 +23,7 @@ dev = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-slopguard = ["py.typed", "schemas/*.json"]
+slopguard = ["py.typed", "schemas/*.json", "data/*.json"]
 
 [tool.ruff]
 line-length = 100
@@ -35,4 +35,5 @@ ignore = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests/unit", "tests/integration"]
-pythonpath = ["src"]
+pythonpath = ["src", "scripts"]
+markers = ["slow: performance-sensitive check"]

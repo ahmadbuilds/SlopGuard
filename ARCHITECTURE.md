@@ -10,8 +10,8 @@ scoring, and presentation stages.
 The extractor and response parser are pure: they parse input text and JSON but never install,
 import, or execute a package. The registry client reads PyPI project JSON only. Registry failures
 remain unknown and do not become evidence that a project is absent or malicious. The current
-repository implements extraction, bounded PyPI lookup, and merging registry evidence; similarity,
-scoring, and presentation are planned components.
+repository implements extraction, bounded PyPI lookup, merging registry evidence, and offline
+look-alike detection; scoring and presentation are planned components.
 
 ## Result contract
 
@@ -33,7 +33,7 @@ Serialized consumers should validate results against the JSON Schema.
 | `registry_metadata` | Optional structured first/latest upload timestamps, release count, project URLs, maintainer hints, and source hints from PyPI JSON metadata. Missing fields remain `null` or empty. |
 | `registry_diagnostics` | Optional request latency, attempt count, HTTP status, retry-after/rate-limit headers, and safe error detail for evaluation. |
 | `metadata_evidence` | Sourced, human-readable facts. Each item includes an evidence kind, summary, source, and confidence from 0 to 1. |
-| `similarity_candidates` | Candidate PyPI names with normalized similarity from 0 to 1 and optional existence state. |
+| `similarity_candidates` | Candidate PyPI names with normalized similarity from 0 to 1, optional existence state, edit distance, popularity rank, and match kind. |
 | `risk_score` | Aggregated risk from 0 (lowest) to 100 (highest). |
 | `severity` | `info`, `low`, `medium`, `high`, or `critical`. |
 | `remediation` | Actionable explanation for a developer reviewing the finding. |
@@ -67,6 +67,10 @@ and evidence completeness together; an unknown registry result alone is never gr
 Adding an optional field is backward compatible. Renaming/removing a required field, changing its
 meaning or type, or changing score/severity semantics requires a contract version change and
 coordination with all producers and consumers before merge.
+
+Similarity candidates may include `edit_distance` (non-negative integer), `popularity_rank`
+(one-based integer), and `match_kind` (`edit` or `separator`). These optional fields explain how a
+candidate was selected; they do not themselves change risk or severity.
 
 ## Dependency extraction
 
@@ -116,6 +120,33 @@ base and head content exceeds 2,000 lines or 1,000,000 characters. Python files 
 and are subject to the 1,000,000-character cap but not the line cap. The extractor stops and
 returns one warning without partial candidates when the input exceeds 1,000 changed files or
 20,000,000 combined base/head characters.
+
+## Look-alike detection
+
+`slopguard.similarity` compares canonical dependency names with the checked-in
+[`popular_packages.json`](src/slopguard/data/popular_packages.json) snapshot. The snapshot is
+derived from the top PyPI packages dataset at
+`https://raw.githubusercontent.com/hugovk/top-pypi-packages/main/top-pypi-packages.min.json`.
+Refresh it manually with `uv run python scripts/update_popular_packages.py`; the script records the
+source update time and retrieval time. Detection itself is offline and never fetches package data.
+
+The matcher uses bounded optimal string alignment (Damerau-Levenshtein with adjacent transpositions
+counting as one edit). It searches only candidates within the configured length band and uses the
+pre-ranked popularity list to return deterministic matches ordered by edit distance, popularity
+rank, and name. Names that differ only by hyphen separators are marked `separator`; other edits are
+marked `edit`. Similarity is `1 - edit_distance / max(name lengths)`.
+
+The popularity rule suppresses a dependency name if it is itself within the configured top `top_n`
+snapshot entries. This prevents popular packages from flagging one another. `[similarity]` settings
+in `examples/slopguard.toml` control `top_n`, `min_length`, `max_distance_by_length`, and
+`max_matches`; if `top_n` exceeds the snapshot size, all available entries are used.
+
+Detection is limited to names in the top `top_n` entries and to the configured edit distance. It
+does not detect homoglyph substitutions or combosquatting. Snapshot freshness depends on manual
+refreshes: `source_last_update` records the source dataset age and `retrieved_at` records when this
+repository's snapshot was generated, so either can lag current PyPI popularity. The matcher reports
+every match within the configured distance, including weak distance-2 matches to lower-ranked
+packages; the scoring stage decides their weight.
 
 ## PyPI registry lookup
 
