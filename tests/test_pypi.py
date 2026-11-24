@@ -85,3 +85,16 @@ def test_malformed_project_url_does_not_crash_response_parsing() -> None:
 
     assert metadata["project_urls"] == {}
     assert metadata["source_hints"] == []
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        '{"info": {"name": "x"}, "n": ' + "1" * 5000 + "}",
+        "[" * 100_000 + "]" * 100_000,
+    ],
+    ids=["oversized-integer", "deep-nesting"],
+)
+def test_pathological_json_is_reported_as_malformed(payload: str) -> None:
+    with pytest.raises(PyPIMetadataError):
+        parse_project_response(payload)

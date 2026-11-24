@@ -23,7 +23,7 @@ def parse_project_response(
 
     try:
         document = json.loads(payload)
-    except (json.JSONDecodeError, UnicodeDecodeError, TypeError) as error:
+    except (ValueError, RecursionError, TypeError) as error:
         raise PyPIMetadataError("PyPI returned invalid JSON.") from error
 
     if not isinstance(document, dict) or not isinstance(document.get("info"), dict):
