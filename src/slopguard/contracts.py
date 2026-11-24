@@ -11,6 +11,8 @@ from importlib.resources import files
 from typing import Literal, NotRequired, TypedDict
 
 Severity = Literal["info", "low", "medium", "high", "critical"]
+Decision = Literal["pass", "warn", "block"]
+ScoreSignal = Literal["not_found", "lookalike", "new_package", "few_releases", "missing_source"]
 RegistryLookupStatus = Literal["exists", "not_found", "transient_error", "malformed_response"]
 EvidenceKind = Literal[
     "registry_metadata",
@@ -63,6 +65,14 @@ class SimilarityCandidate(TypedDict):
     match_kind: NotRequired[Literal["edit", "separator"]]
 
 
+class ScoreContribution(TypedDict):
+    """One explainable scoring signal and its additive point value."""
+
+    signal: ScoreSignal
+    points: float
+    summary: str
+
+
 class SourceLocation(TypedDict):
     """Location where the dependency name was introduced."""
 
@@ -87,6 +97,9 @@ class DependencyResult(TypedDict):
     registry_status: NotRequired[RegistryLookupStatus]
     registry_metadata: NotRequired[RegistryMetadata]
     registry_diagnostics: NotRequired[RegistryDiagnostics]
+    score_contributions: NotRequired[list[ScoreContribution]]
+    decision: NotRequired[Decision]
+    allowlisted: NotRequired[bool]
 
 
 def load_result_schema() -> dict[str, object]:
