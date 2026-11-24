@@ -89,7 +89,75 @@ def test_timeout_is_unknown_not_not_found() -> None:
     assert result.latency_ms == 20.0
 
 
+def test_rate_limit_retry_is_capped_and_result_is_cached_per_client() -> None:
+    responses = iter(
+        [
+            HTTPResponse(429, b"", {"Retry-After": "8", "X-RateLimit-Remaining": "0"}),
+            HTTPResponse(200, SAMPLE, {}),
+        ]
+    )
+    calls: list[str] = []
+    delays: list[float] = []
+    clock_values = iter((3.0, 3.25))
+
+    def transport(url: str, _timeout: float, _max_bytes: int) -> HTTPResponse:
+        calls.append(url)
+        return next(responses)
+
+    client = PyPIClient(
+        max_retries=1,
+        transport=transport,
+        clock=lambda: next(clock_values),
+        sleeper=delays.append,
+    )
+
+    result = client.lookup("sampleproject")
+    assert result.status == "exists"
+    assert result.attempts == 2
+    assert result.http_status == 200
+    assert result.retry_after == "8"
+    assert result.rate_limit_remaining == "0"
+    assert result.error == "Recovered after HTTP 429."
+    assert delays == [0.5]
+
+    result.metadata["project_urls"].clear()
+    cached = client.lookup("sampleproject")
+    assert cached.metadata["project_urls"]
+    assert len(calls) == 2
+
+
+def test_retry_exhaustion_stays_unknown_and_records_attempt_count() -> None:
+    calls = 0
+    delays: list[float] = []
+    clock_values = iter((7.0, 7.4))
+
+    def transport(_url: str, _timeout: float, _max_bytes: int) -> HTTPResponse:
+        nonlocal calls
+        calls += 1
+        return HTTPResponse(503, b"", {})
+
+    result = PyPIClient(
+        max_retries=1,
+        transport=transport,
+        clock=lambda: next(clock_values),
+        sleeper=delays.append,
+    ).lookup("sampleproject")
+
+    assert calls == 2
+    assert delays == [0.1]
+    assert result.status == "transient_error"
+    assert result.registry_exists is None
+    assert result.attempts == 2
+    assert result.http_status == 503
+
+
 @pytest.mark.parametrize("timeout", [0, -1, 10.1])
 def test_timeout_configuration_is_bounded(timeout: float) -> None:
     with pytest.raises(ValueError):
         PyPIClient(timeout_seconds=timeout)
+
+
+@pytest.mark.parametrize("max_retries", [-1, 3])
+def test_retry_count_configuration_is_bounded(max_retries: int) -> None:
+    with pytest.raises(ValueError):
+        PyPIClient(max_retries=max_retries)

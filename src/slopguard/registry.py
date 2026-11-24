@@ -5,7 +5,10 @@ from __future__ import annotations
 import re
 import time
 from collections.abc import Callable, Mapping
+from copy import deepcopy
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from urllib.error import HTTPError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
@@ -64,17 +67,32 @@ class PyPIClient:
         *,
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
         max_response_bytes: int = MAX_RESPONSE_BYTES,
+        max_retries: int = 1,
+        backoff_seconds: float = 0.1,
+        max_backoff_seconds: float = 0.5,
         transport: Transport | None = None,
         clock: Callable[[], float] = time.monotonic,
+        sleeper: Callable[[float], None] = time.sleep,
     ) -> None:
         if not 0 < timeout_seconds <= 10:
             raise ValueError("timeout_seconds must be greater than 0 and at most 10")
         if not 0 < max_response_bytes <= MAX_RESPONSE_BYTES:
             raise ValueError(f"max_response_bytes must be between 1 and {MAX_RESPONSE_BYTES}")
+        if not 0 <= max_retries <= 2:
+            raise ValueError("max_retries must be between 0 and 2")
+        if not 0 <= backoff_seconds <= 1 or not 0 <= max_backoff_seconds <= 1:
+            raise ValueError("retry backoff values must be between 0 and 1 second")
+        if backoff_seconds > max_backoff_seconds:
+            raise ValueError("backoff_seconds cannot exceed max_backoff_seconds")
         self.timeout_seconds = timeout_seconds
         self.max_response_bytes = max_response_bytes
+        self.max_retries = max_retries
+        self.backoff_seconds = backoff_seconds
+        self.max_backoff_seconds = max_backoff_seconds
         self._transport = transport or _fetch_project_json
         self._clock = clock
+        self._sleeper = sleeper
+        self._cache: dict[str, RegistryLookupResult] = {}
 
     def lookup(self, package_name: str) -> RegistryLookupResult:
         """Return a cached-independent lookup result for one distribution name."""
@@ -89,77 +107,130 @@ class PyPIClient:
                 error="Package name is not a valid normalized distribution name.",
             )
 
+        if normalized_name in self._cache:
+            return deepcopy(self._cache[normalized_name])
+
         started_at = self._clock()
         url = f"https://pypi.org/pypi/{quote(normalized_name, safe='')}/json"
-        try:
-            response = self._transport(url, self.timeout_seconds, self.max_response_bytes)
-        except (OSError, TimeoutError) as error:
-            return self._result(
+        attempts = 0
+        retry_after: str | None = None
+        rate_limit_remaining: str | None = None
+        last_retryable_status: int | None = None
+        response: HTTPResponse | None = None
+        request_error: OSError | TimeoutError | None = None
+
+        while attempts <= self.max_retries:
+            attempts += 1
+            try:
+                response = self._transport(url, self.timeout_seconds, self.max_response_bytes)
+                request_error = None
+            except (OSError, TimeoutError) as error:
+                response = None
+                request_error = error
+
+            if response is not None:
+                retry_after = _header(response.headers, "retry-after") or retry_after
+                rate_limit_remaining = (
+                    _header(response.headers, "x-ratelimit-remaining") or rate_limit_remaining
+                )
+                if _is_retryable_status(response.status_code) and attempts <= self.max_retries:
+                    last_retryable_status = response.status_code
+                    self._sleeper(
+                        _retry_delay(
+                            retry_after, attempts, self.backoff_seconds, self.max_backoff_seconds
+                        )
+                    )
+                    continue
+            elif attempts <= self.max_retries:
+                self._sleeper(
+                    _retry_delay(None, attempts, self.backoff_seconds, self.max_backoff_seconds)
+                )
+                continue
+            break
+
+        recovery_note = (
+            f"Recovered after HTTP {last_retryable_status}." if last_retryable_status else None
+        )
+        if request_error is not None:
+            result = self._result(
                 normalized_name,
                 "transient_error",
                 metadata=None,
                 started_at=started_at,
-                error=f"Registry request failed ({type(error).__name__}).",
+                attempts=attempts,
+                retry_after=retry_after,
+                rate_limit_remaining=rate_limit_remaining,
+                error=f"Registry request failed ({type(request_error).__name__}).",
             )
+            self._cache[normalized_name] = deepcopy(result)
+            return result
 
-        retry_after = _header(response.headers, "retry-after")
-        rate_limit_remaining = _header(response.headers, "x-ratelimit-remaining")
+        assert response is not None
         if response.too_large or len(response.body) > self.max_response_bytes:
-            return self._result(
+            result = self._result(
                 normalized_name,
                 "malformed_response",
                 metadata=None,
                 started_at=started_at,
+                attempts=attempts,
                 http_status=response.status_code,
                 retry_after=retry_after,
                 rate_limit_remaining=rate_limit_remaining,
                 error="PyPI response exceeded the configured size limit.",
             )
-        if response.status_code == 404:
-            return self._result(
+        elif response.status_code == 404:
+            result = self._result(
                 normalized_name,
                 "not_found",
                 metadata=None,
                 started_at=started_at,
+                attempts=attempts,
                 http_status=404,
                 retry_after=retry_after,
                 rate_limit_remaining=rate_limit_remaining,
             )
-        if response.status_code != 200:
-            return self._result(
+        elif response.status_code != 200:
+            result = self._result(
                 normalized_name,
                 "transient_error",
                 metadata=None,
                 started_at=started_at,
+                attempts=attempts,
                 http_status=response.status_code,
                 retry_after=retry_after,
                 rate_limit_remaining=rate_limit_remaining,
-                error=f"PyPI returned HTTP {response.status_code}.",
+                error=recovery_note or f"PyPI returned HTTP {response.status_code}.",
             )
+        else:
+            try:
+                metadata = parse_project_response(response.body)
+            except PyPIMetadataError as error:
+                result = self._result(
+                    normalized_name,
+                    "malformed_response",
+                    metadata=None,
+                    started_at=started_at,
+                    attempts=attempts,
+                    http_status=response.status_code,
+                    retry_after=retry_after,
+                    rate_limit_remaining=rate_limit_remaining,
+                    error=str(error),
+                )
+            else:
+                result = self._result(
+                    normalized_name,
+                    "exists",
+                    metadata=metadata,
+                    started_at=started_at,
+                    attempts=attempts,
+                    http_status=response.status_code,
+                    retry_after=retry_after,
+                    rate_limit_remaining=rate_limit_remaining,
+                    error=recovery_note,
+                )
 
-        try:
-            metadata = parse_project_response(response.body)
-        except PyPIMetadataError as error:
-            return self._result(
-                normalized_name,
-                "malformed_response",
-                metadata=None,
-                started_at=started_at,
-                http_status=response.status_code,
-                retry_after=retry_after,
-                rate_limit_remaining=rate_limit_remaining,
-                error=str(error),
-            )
-
-        return self._result(
-            normalized_name,
-            "exists",
-            metadata=metadata,
-            started_at=started_at,
-            http_status=response.status_code,
-            retry_after=retry_after,
-            rate_limit_remaining=rate_limit_remaining,
-        )
+        self._cache[normalized_name] = deepcopy(result)
+        return result
 
     def _result(
         self,
@@ -168,6 +239,7 @@ class PyPIClient:
         *,
         metadata: RegistryMetadata | None,
         started_at: float,
+        attempts: int = 1,
         http_status: int | None = None,
         retry_after: str | None = None,
         rate_limit_remaining: str | None = None,
@@ -179,12 +251,38 @@ class PyPIClient:
             status=status,
             metadata=metadata,
             latency_ms=round(elapsed_ms, 3),
-            attempts=1,
+            attempts=attempts,
             http_status=http_status,
             retry_after=retry_after,
             rate_limit_remaining=rate_limit_remaining,
             error=error,
         )
+
+
+def _is_retryable_status(status_code: int) -> bool:
+    return status_code == 429 or 500 <= status_code <= 599
+
+
+def _retry_delay(
+    retry_after: str | None,
+    failed_attempt: int,
+    backoff_seconds: float,
+    max_backoff_seconds: float,
+) -> float:
+    if retry_after:
+        try:
+            delay = float(retry_after)
+        except ValueError:
+            try:
+                retry_at = parsedate_to_datetime(retry_after)
+                if retry_at.tzinfo is None:
+                    retry_at = retry_at.replace(tzinfo=UTC)
+                delay = max(0.0, (retry_at - datetime.now(UTC)).total_seconds())
+            except (TypeError, ValueError, OverflowError):
+                delay = backoff_seconds * (2 ** (failed_attempt - 1))
+    else:
+        delay = backoff_seconds * (2 ** (failed_attempt - 1))
+    return min(max(0.0, delay), max_backoff_seconds)
 
 
 def _fetch_project_json(url: str, timeout: float, max_bytes: int) -> HTTPResponse:
