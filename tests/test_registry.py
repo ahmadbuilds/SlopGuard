@@ -228,6 +228,29 @@ def test_tls_reader_waits_for_writable_socket_after_want_write(
     assert readiness == [(True, False), (False, True)]
 
 
+def test_tls_sender_waits_for_readable_socket_after_want_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    readiness: list[tuple[bool, bool]] = []
+
+    class WantsReadSocket:
+        calls = 0
+
+        def send(self, payload: memoryview) -> int:
+            self.calls += 1
+            if self.calls == 1:
+                raise ssl.SSLWantReadError()
+            return len(payload)
+
+    def record_readiness(_connection, _deadline, *, readable=False, writable=False):
+        readiness.append((readable, writable))
+
+    monkeypatch.setattr(registry, "_wait_for_socket", record_readiness)
+    registry._send_with_deadline(WantsReadSocket(), b"request", time.monotonic() + 1)
+
+    assert readiness == [(False, True), (True, False)]
+
+
 def test_dns_resolution_obeys_total_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
     entered = threading.Event()
     release = threading.Event()
@@ -253,6 +276,54 @@ def test_dns_resolution_obeys_total_deadline(monkeypatch: pytest.MonkeyPatch) ->
     assert entered.is_set()
     assert elapsed < 0.2
     assert resolved.wait(timeout=1)
+
+
+def test_concurrent_dns_resolutions_do_not_reject_other_lookups(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entered = 0
+    entered_lock = threading.Lock()
+    both_entered = threading.Event()
+    release = threading.Event()
+    results: list[list] = []
+
+    def held_getaddrinfo(*_args, **_kwargs):
+        nonlocal entered
+        with entered_lock:
+            entered += 1
+            if entered == 2:
+                both_entered.set()
+        release.wait()
+        return []
+
+    def resolve() -> None:
+        results.append(registry._resolve_addresses("pypi.org", 443, time.monotonic() + 1))
+
+    monkeypatch.setattr(registry.socket, "getaddrinfo", held_getaddrinfo)
+    callers = [threading.Thread(target=resolve) for _ in range(2)]
+    for caller in callers:
+        caller.start()
+    try:
+        assert both_entered.wait(timeout=0.5)
+    finally:
+        release.set()
+        for caller in callers:
+            caller.join(timeout=1)
+
+    assert len(results) == 2
+    assert results == [[], []]
+
+
+def test_dns_worker_start_failure_becomes_an_os_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_to_start(_thread):
+        raise RuntimeError("thread creation failed")
+
+    monkeypatch.setattr(threading.Thread, "start", fail_to_start)
+
+    with pytest.raises(OSError, match="DNS resolver"):
+        registry._resolve_addresses("pypi.org", 443, time.monotonic() + 1)
 
 
 def test_deadline_http_response_adapter_reads_project_json(

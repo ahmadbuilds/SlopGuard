@@ -28,8 +28,9 @@ MAX_RESPONSE_BYTES = 2_000_000
 DEFAULT_TIMEOUT_SECONDS = 3.0
 _READ_CHUNK_BYTES = 64 * 1024
 _MAX_HEADER_BYTES = 64 * 1024
+_MAX_CONCURRENT_DNS_LOOKUPS = 16
 _NORMALIZED_NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
-_DNS_RESOLUTION_SLOT = threading.BoundedSemaphore(1)
+_DNS_RESOLUTION_SLOTS = threading.BoundedSemaphore(_MAX_CONCURRENT_DNS_LOOKUPS)
 
 
 @dataclass(frozen=True)
@@ -453,25 +454,33 @@ def _resolve_addresses(
     remaining = deadline - time.monotonic()
     if remaining <= 0:
         raise TimeoutError("PyPI request exceeded the total request deadline.")
-    if not _DNS_RESOLUTION_SLOT.acquire(blocking=False):
+    if not _DNS_RESOLUTION_SLOTS.acquire(timeout=remaining):
+        raise TimeoutError("PyPI request exceeded the total request deadline.")
+    if time.monotonic() >= deadline:
+        _DNS_RESOLUTION_SLOTS.release()
         raise TimeoutError("PyPI request exceeded the total request deadline.")
 
     result: queue.Queue[tuple[object | None, OSError | None]] = queue.Queue(maxsize=1)
 
     def resolve() -> None:
         try:
+            if time.monotonic() >= deadline:
+                result.put(
+                    (None, TimeoutError("PyPI request exceeded the total request deadline."))
+                )
+                return
             result.put((socket.getaddrinfo(host, port, type=socket.SOCK_STREAM), None))
         except OSError as error:
             result.put((None, error))
         finally:
-            _DNS_RESOLUTION_SLOT.release()
+            _DNS_RESOLUTION_SLOTS.release()
 
     worker = threading.Thread(target=resolve, name="slopguard-dns", daemon=True)
     try:
         worker.start()
-    except RuntimeError:
-        _DNS_RESOLUTION_SLOT.release()
-        raise
+    except RuntimeError as error:
+        _DNS_RESOLUTION_SLOTS.release()
+        raise OSError("Unable to start the PyPI DNS resolver.") from error
 
     remaining = deadline - time.monotonic()
     if remaining <= 0:
@@ -490,18 +499,26 @@ def _resolve_addresses(
 
 def _send_with_deadline(connection: ssl.SSLSocket, payload: bytes, deadline: float) -> None:
     remaining = memoryview(payload)
+    wait_readable = False
     while remaining:
-        _wait_for_socket(connection, deadline, writable=True)
+        _wait_for_socket(
+            connection,
+            deadline,
+            readable=wait_readable,
+            writable=not wait_readable,
+        )
         try:
             sent = connection.send(remaining)
         except ssl.SSLWantReadError:
-            _wait_for_socket(connection, deadline, readable=True)
+            wait_readable = True
             continue
         except (ssl.SSLWantWriteError, BlockingIOError):
+            wait_readable = False
             continue
         if not sent:
             raise OSError("PyPI closed the connection before receiving the request.")
         remaining = remaining[sent:]
+        wait_readable = False
 
 
 def _wait_for_socket(
