@@ -2,17 +2,17 @@
   "contract_version": "1.0.0",
   "requested_name": "Reqeusts",
   "normalized_name": "reqeusts",
-  "registry_exists": true,
+  "registry_exists": false,
   "metadata_evidence": [
     {
-      "kind": "registry_metadata",
-      "summary": "Package metadata was retrieved from the public PyPI JSON API.",
-      "source": "https://pypi.org/pypi/reqeusts/json",
-      "confidence": 1.0
+      "kind": "similarity",
+      "summary": "The requested name was not found on PyPI; the existing 'requests' package is a close spelling candidate.",
+      "source": "https://pypi.org/project/requests/",
+      "confidence": 0.9
     }
   ],
   "similarity_candidates": [
-    {"name": "requests", "similarity": 0.875, "registry_exists": true}
+    {"name": "requests", "similarity": 0.75, "registry_exists": true}
   ],
   "risk_score": 68.0,
   "severity": "high",

@@ -22,6 +22,11 @@ def test_unknown_registry_state_is_allowed() -> None:
     VALIDATOR.validate(result)
 
 
+def test_missing_package_example_only_cites_candidate_evidence() -> None:
+    assert SAMPLE["registry_exists"] is False
+    assert all(evidence["kind"] != "registry_metadata" for evidence in SAMPLE["metadata_evidence"])
+
+
 @pytest.mark.parametrize(
     "change",
     [
