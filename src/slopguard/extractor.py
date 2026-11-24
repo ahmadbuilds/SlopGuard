@@ -35,6 +35,8 @@ IMPORT_TO_DISTRIBUTION = {
 }
 MAX_DIFF_INPUT_LINES = 2_000
 MAX_DIFF_INPUT_CHARACTERS = 1_000_000
+MAX_CHANGED_FILES = 1_000
+MAX_TOTAL_DIFF_INPUT_CHARACTERS = 20_000_000
 
 
 @dataclass(frozen=True)
@@ -70,9 +72,38 @@ def extract_dependencies(changed_files: Iterable[ChangedFile]) -> ExtractionResu
     score is a neutral placeholder until the later analysis stages run.
     """
 
-    changed_files = tuple(changed_files)
+    materialized_files: list[ChangedFile] = []
+    total_characters = 0
+    for changed_file in changed_files:
+        if len(materialized_files) >= MAX_CHANGED_FILES:
+            return ExtractionResult(
+                (),
+                (
+                    ExtractionWarning(
+                        changed_file.path,
+                        None,
+                        "Pull request exceeds the safe changed-file count limit; dependency extraction was skipped.",
+                    ),
+                ),
+            )
+        total_characters += len(changed_file.base_content) + len(changed_file.content)
+        if total_characters > MAX_TOTAL_DIFF_INPUT_CHARACTERS:
+            return ExtractionResult(
+                (),
+                (
+                    ExtractionWarning(
+                        changed_file.path,
+                        None,
+                        "Pull request exceeds the safe aggregate diff size limit; dependency extraction was skipped.",
+                    ),
+                ),
+            )
+        materialized_files.append(changed_file)
+
+    changed_files = tuple(materialized_files)
+    local_modules = _local_python_module_names(changed_files)
     candidates: dict[str, DependencyResult] = {}
-    baseline: dict[str, DependencyResult] = {}
+    baseline: dict[str, set[str]] = {}
     warnings: list[ExtractionWarning] = []
 
     for changed_file in changed_files:
@@ -87,6 +118,7 @@ def extract_dependencies(changed_files: Iterable[ChangedFile]) -> ExtractionResu
             continue
 
         if changed_file.base_content:
+            baseline_candidates: dict[str, DependencyResult] = {}
             base_lines = {
                 line_number: line
                 for line_number, line in enumerate(changed_file.base_content.splitlines(), start=1)
@@ -94,19 +126,29 @@ def extract_dependencies(changed_files: Iterable[ChangedFile]) -> ExtractionResu
             _extract_file(
                 ChangedFile(changed_file.path, "", changed_file.base_content),
                 base_lines,
-                baseline,
+                baseline_candidates,
                 [],
+                local_modules,
             )
+            for name, candidate in baseline_candidates.items():
+                baseline.setdefault(name, set()).update(
+                    location["source_type"] for location in candidate["source_locations"]
+                )
 
         added_lines = _added_lines(changed_file.base_content, changed_file.content)
         if not added_lines:
             continue
-        _extract_file(changed_file, added_lines, candidates, warnings)
+        _extract_file(changed_file, added_lines, candidates, warnings, local_modules)
 
     # A line reformat can make an unchanged PEP 621 dependency look newly added
-    # in a textual diff. Exclude normalized names already present in any
-    # supplied base file, while preserving source locations for true additions.
-    candidates = {name: candidate for name, candidate in candidates.items() if name not in baseline}
+    # in a textual diff. Existing manifest dependencies suppress new manifest
+    # entries; existing imports suppress import-only candidates. An old import
+    # must not hide a newly declared manifest dependency.
+    candidates = {
+        name: candidate
+        for name, candidate in candidates.items()
+        if not _candidate_already_present(name, candidate, baseline)
+    }
 
     return ExtractionResult(tuple(candidates.values()), tuple(warnings))
 
@@ -121,11 +163,45 @@ def _diff_input_exceeds_limits(changed_file: ChangedFile) -> bool:
     return total_lines > MAX_DIFF_INPUT_LINES
 
 
+def _candidate_already_present(
+    name: str,
+    candidate: DependencyResult,
+    baseline: dict[str, set[str]],
+) -> bool:
+    baseline_sources = baseline.get(name, set())
+    if not baseline_sources:
+        return False
+    has_manifest_source = any(
+        location["source_type"] in {"requirements", "pyproject"}
+        for location in candidate["source_locations"]
+    )
+    relevant_sources = {"requirements", "pyproject"} if has_manifest_source else {"import"}
+    return bool(baseline_sources & relevant_sources)
+
+
+def _local_python_module_names(changed_files: tuple[ChangedFile, ...]) -> set[str]:
+    names: set[str] = set()
+    for changed_file in changed_files:
+        path = PurePosixPath(changed_file.path)
+        if path.suffix.lower() != ".py" or not changed_file.content:
+            continue
+        parts = [part for part in path.with_suffix("").parts if part not in {"/", "."}]
+        if parts and parts[0] in {"src", "lib", "app", "tests"}:
+            parts = parts[1:]
+        if parts and parts[-1] == "__init__":
+            parts = parts[:-1]
+        for start in range(len(parts)):
+            for end in range(start + 1, len(parts) + 1):
+                names.add(".".join(parts[start:end]))
+    return names
+
+
 def _extract_file(
     changed_file: ChangedFile,
     lines: dict[int, str],
     candidates: dict[str, DependencyResult],
     warnings: list[ExtractionWarning],
+    local_modules: set[str],
 ) -> None:
     path = PurePosixPath(changed_file.path)
     filename = path.name.lower()
@@ -137,7 +213,7 @@ def _extract_file(
     ):
         _extract_requirements(changed_file, lines, candidates, warnings)
     elif path.suffix.lower() == ".py":
-        _extract_imports(changed_file, lines, candidates, warnings)
+        _extract_imports(changed_file, lines, candidates, warnings, local_modules)
 
 
 def _added_lines(base_content: str, content: str) -> dict[int, str]:
@@ -341,11 +417,38 @@ def _pep621_dependency_entries(
             or (table == "project" and key.startswith("optional-dependencies."))
             or table == "project.optional-dependencies"
         )
+        is_inline_optional_dependencies = table == "project" and key == "optional-dependencies"
+        value_text = assignment.group(4)
+        if is_inline_optional_dependencies and value_text.lstrip().startswith("{"):
+            try:
+                optional_dependencies = tomllib.loads(f"values = {value_text}")["values"]
+            except tomllib.TOMLDecodeError:
+                optional_dependencies = None
+            if not isinstance(optional_dependencies, dict) or any(
+                not isinstance(group, str)
+                or not isinstance(dependencies, list)
+                or not all(isinstance(dependency, str) for dependency in dependencies)
+                for group, dependencies in optional_dependencies.items()
+            ):
+                warnings.append(
+                    ExtractionWarning(
+                        path,
+                        index + 1,
+                        "Inline optional dependencies must map group names to static string arrays; this declaration was skipped.",
+                    )
+                )
+            else:
+                entries.extend(
+                    (dependency, index + 1)
+                    for dependencies in optional_dependencies.values()
+                    for dependency in dependencies
+                )
+            index += 1
+            continue
         if not is_dependency_array:
             index += 1
             continue
 
-        value_text = assignment.group(4)
         bracket_offset = value_text.find("[")
         if bracket_offset < 0:
             if value_text.strip() and not value_text.lstrip().startswith("#"):
@@ -495,50 +598,64 @@ def _extract_imports(
     added_lines: dict[int, str],
     candidates: dict[str, DependencyResult],
     warnings: list[ExtractionWarning],
+    local_modules: set[str],
 ) -> None:
+    try:
+        module = ast.parse(changed_file.content)
+    except SyntaxError:
+        for line_number, raw_line in added_lines.items():
+            if re.match(r"^\s*(?:import|from)\b", raw_line):
+                warnings.append(
+                    ExtractionWarning(
+                        changed_file.path,
+                        line_number,
+                        "Python file has syntax errors; import additions could not be parsed.",
+                    )
+                )
+        return
+
     multiline_lines = _multiline_import_added_lines(
         changed_file.content, added_lines, changed_file.path, warnings
     )
-    for line_number, raw_line in added_lines.items():
-        if line_number in multiline_lines:
+    import_nodes = sorted(
+        (node for node in ast.walk(module) if isinstance(node, ast.Import | ast.ImportFrom)),
+        key=lambda node: (node.lineno, node.col_offset),
+    )
+    for node in import_nodes:
+        line_number = node.lineno
+        end_line = getattr(node, "end_lineno", line_number)
+        changed_import_lines = [
+            added_line for added_line in added_lines if line_number <= added_line <= end_line
+        ]
+        if not changed_import_lines:
             continue
-        line = raw_line.strip()
-        if not re.match(r"^(?:import|from)\b", line):
-            continue
-        try:
-            module = ast.parse(line)
-        except SyntaxError:
-            warnings.append(
-                ExtractionWarning(
-                    changed_file.path,
-                    line_number,
-                    "Multiline or unsupported import syntax was skipped.",
-                )
-            )
+        if line_number in multiline_lines or end_line > line_number:
             continue
 
-        for node in module.body:
-            if isinstance(node, ast.Import):
-                import_names = [alias.name.split(".", maxsplit=1)[0] for alias in node.names]
-            elif isinstance(node, ast.ImportFrom):
-                if node.level or not node.module:
-                    continue
-                import_names = [node.module.split(".", maxsplit=1)[0]]
-            else:
+        if isinstance(node, ast.Import):
+            import_names = [alias.name for alias in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            if node.level or not node.module:
                 continue
+            import_names = [node.module]
+        else:
+            continue
 
-            for import_name in import_names:
-                if import_name in sys.stdlib_module_names:
-                    continue
-                distribution = IMPORT_TO_DISTRIBUTION.get(import_name, import_name)
-                _add_candidate(
-                    candidates,
-                    import_name,
-                    changed_file.path,
-                    line_number,
-                    "import",
-                    normalized_name=distribution,
-                )
+        for full_import_name in import_names:
+            import_name = full_import_name.split(".", maxsplit=1)[0]
+            if import_name in sys.stdlib_module_names:
+                continue
+            if full_import_name in local_modules or import_name in local_modules:
+                continue
+            distribution = IMPORT_TO_DISTRIBUTION.get(import_name, import_name)
+            _add_candidate(
+                candidates,
+                import_name,
+                changed_file.path,
+                line_number,
+                "import",
+                normalized_name=distribution,
+            )
 
 
 def _multiline_import_added_lines(

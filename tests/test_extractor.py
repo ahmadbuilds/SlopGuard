@@ -172,6 +172,100 @@ def test_multiline_import_addition_is_reported_as_unsupported() -> None:
     assert all("Multiline import syntax" in warning.message for warning in result.warnings)
 
 
+def test_new_manifest_dependency_is_not_suppressed_by_unchanged_import() -> None:
+    result = extract_dependencies(
+        [
+            ChangedFile("requirements.txt", "", "requests==2.32.0\n"),
+            ChangedFile("src/app.py", "import requests\n", "import requests\n# changed\n"),
+        ]
+    )
+
+    assert [candidate["normalized_name"] for candidate in result.candidates] == ["requests"]
+    assert result.candidates[0]["source_locations"] == [
+        {"file": "requirements.txt", "line": 1, "source_type": "requirements"}
+    ]
+
+
+def test_import_text_inside_multiline_string_is_not_emitted() -> None:
+    result = extract_dependencies(
+        [
+            ChangedFile(
+                "src/app.py",
+                "",
+                'DOCUMENTATION = """\nimport fake_package\n"""\n',
+            )
+        ]
+    )
+
+    assert result.candidates == ()
+    assert result.warnings == ()
+
+
+def test_inline_optional_dependencies_are_extracted() -> None:
+    result = extract_dependencies(
+        [
+            ChangedFile(
+                "pyproject.toml",
+                "",
+                '[project]\nname = "example"\noptional-dependencies = {dev = ["pytest>=8"]}\n',
+            )
+        ]
+    )
+
+    assert [candidate["normalized_name"] for candidate in result.candidates] == ["pytest"]
+    assert result.candidates[0]["source_locations"] == [
+        {"file": "pyproject.toml", "line": 3, "source_type": "pyproject"}
+    ]
+    assert result.warnings == ()
+
+
+def test_import_of_changed_local_module_is_not_a_pypi_candidate() -> None:
+    result = extract_dependencies(
+        [
+            ChangedFile("src/helpers.py", "", "VALUE = 1\n"),
+            ChangedFile("src/app.py", "", "import helpers\n"),
+        ]
+    )
+
+    assert result.candidates == ()
+    assert result.warnings == ()
+
+
+def test_aggregate_input_limit_stops_consuming_a_large_iterable() -> None:
+    repeated_content = "x" * 1_000_000
+    yielded = 0
+
+    def changed_files():
+        nonlocal yielded
+        for index in range(100):
+            yielded += 1
+            yield ChangedFile(f"requirements-{index}.txt", "", repeated_content)
+
+    result = extract_dependencies(changed_files())
+
+    assert yielded == 21
+    assert result.candidates == ()
+    assert len(result.warnings) == 1
+    assert "aggregate diff size limit" in result.warnings[0].message
+
+
+def test_changed_file_count_limit_stops_consuming_a_large_iterable() -> None:
+    yielded = 0
+
+    def changed_files():
+        nonlocal yielded
+        for index in range(2_000):
+            yielded += 1
+            yield ChangedFile(f"file-{index}.txt", "", "")
+
+    result = extract_dependencies(changed_files())
+
+    assert yielded == 1_001
+    assert result.candidates == ()
+    assert len(result.warnings) == 1
+    assert "changed-file count limit" in result.warnings[0].message
+
+
 def test_extraction_example_matches_shared_contract() -> None:
     example = json.loads(
         (ROOT / "examples" / "extracted-dependency.json").read_text(encoding="utf-8")
