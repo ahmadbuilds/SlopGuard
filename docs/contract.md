@@ -10,6 +10,9 @@
 | `requested_name` | Exact name found in the input manifest or source. |
 | `normalized_name` | PEP 503 canonicalized name: lowercase and each run of `.`, `_`, or `-` replaced with `-`. |
 | `registry_exists` | `true` or `false` after a successful PyPI lookup; `null` if a timeout, rate limit, or other lookup failure prevents a conclusion. |
+| `registry_status` | Optional explicit state: `exists`, `not_found`, `transient_error`, or `malformed_response`. This distinguishes an unknown lookup from a confirmed 404. |
+| `registry_metadata` | Optional structured first/latest upload timestamps, release count, project URLs, maintainer hints, and source hints from PyPI JSON metadata. Missing fields remain `null` or empty. |
+| `registry_diagnostics` | Optional request latency, attempt count, HTTP status, retry-after/rate-limit headers, and safe error detail for evaluation. |
 | `metadata_evidence` | Sourced, human-readable facts. Each item includes an evidence kind, summary, source, and confidence from 0 to 1. |
 | `similarity_candidates` | Candidate PyPI names with normalized similarity from 0 to 1 and optional existence state. |
 | `risk_score` | Aggregated risk from 0 (lowest) to 100 (highest). |
@@ -23,6 +26,7 @@
 - The initial threat is dependency-name confusion, including typosquatting and suspiciously similar package names. Metadata signals are evidence, not proof of malicious intent.
 - Registry requests are anonymous, read-only, and time bounded. No credentials belong in the package, configuration example, CI, or sample output.
 - Network failures, rate limits, and incomplete metadata are represented as unknown evidence. They must not be converted into `registry_exists: false` or a malicious verdict.
+- Registry lookup status and metadata diagnostics are supporting facts only; applying them never changes `risk_score` or `severity`.
 - The default policy is `warn`. An opt-in `block` mode may block only when the result is sufficiently evidenced and the risk score reaches the configured threshold. The policy and thresholds here are provisional until confirmed by the team.
 
 ## Severity and enforcement

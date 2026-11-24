@@ -1,0 +1,63 @@
+{
+  "contract_version": "1.0.0",
+  "requested_name": "sampleproject",
+  "normalized_name": "sampleproject",
+  "registry_exists": true,
+  "registry_status": "exists",
+  "registry_metadata": {
+    "first_release_at": "2015-06-14T14:37:56.383366Z",
+    "release_count": 2,
+    "latest_release_at": "2024-11-06T22:37:10.868088Z",
+    "project_urls": {
+      "Homepage": "https://github.com/pypa/sampleproject",
+      "Source": "https://github.com/pypa/sampleproject/"
+    },
+    "maintainer_hints": [
+      "A. Great Maintainer",
+      "Owner: theacodes",
+      "Maintainer: pypa-bot"
+    ],
+    "source_hints": [
+      "https://github.com/pypa/sampleproject",
+      "https://github.com/pypa/sampleproject/"
+    ]
+  },
+  "registry_diagnostics": {
+    "latency_ms": 24.5,
+    "attempts": 1,
+    "http_status": 200,
+    "retry_after": null,
+    "rate_limit_remaining": null,
+    "error": null
+  },
+  "metadata_evidence": [
+    {
+      "kind": "registry_metadata",
+      "summary": "PyPI returned a project record for this normalized package name.",
+      "source": "https://pypi.org/pypi/sampleproject/json",
+      "confidence": 1.0
+    },
+    {
+      "kind": "release_history",
+      "summary": "2 published release versions; first upload 2015-06-14T14:37:56.383366Z; latest upload 2024-11-06T22:37:10.868088Z.",
+      "source": "https://pypi.org/pypi/sampleproject/json",
+      "confidence": 1.0
+    },
+    {
+      "kind": "maintainer",
+      "summary": "PyPI maintainer hints: A. Great Maintainer, Owner: theacodes, Maintainer: pypa-bot.",
+      "source": "https://pypi.org/pypi/sampleproject/json",
+      "confidence": 0.8
+    },
+    {
+      "kind": "registry_metadata",
+      "summary": "Project source links: https://github.com/pypa/sampleproject, https://github.com/pypa/sampleproject/.",
+      "source": "https://pypi.org/pypi/sampleproject/json",
+      "confidence": 0.8
+    }
+  ],
+  "similarity_candidates": [],
+  "risk_score": 0.0,
+  "severity": "info",
+  "remediation": "Review registry metadata as supporting evidence; it is not proof of package safety."
+}

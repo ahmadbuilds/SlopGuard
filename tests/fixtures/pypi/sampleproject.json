@@ -1,0 +1,28 @@
+{
+  "info": {
+    "name": "sampleproject",
+    "version": "4.0.0",
+    "maintainer": "A. Great Maintainer",
+    "project_urls": {
+      "Homepage": "https://github.com/pypa/sampleproject",
+      "Source": "https://github.com/pypa/sampleproject/"
+    }
+  },
+  "releases": {
+    "1.0": [],
+    "1.2.0": [
+      {"upload_time_iso_8601": "2015-06-14T14:37:56.383366Z"},
+      {"upload_time": "2015-06-14T14:38:05"}
+    ],
+    "4.0.0": [
+      {"upload_time_iso_8601": "2024-11-06T22:37:09.220617Z"},
+      {"upload_time_iso_8601": "2024-11-06T22:37:10.868088Z"}
+    ]
+  },
+  "ownership": {
+    "roles": [
+      {"role": "Owner", "user": "theacodes"},
+      {"role": "Maintainer", "user": "pypa-bot"}
+    ]
+  }
+}

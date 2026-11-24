@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Literal, NotRequired, TypedDict
 
 Severity = Literal["info", "low", "medium", "high", "critical"]
+RegistryLookupStatus = Literal["exists", "not_found", "transient_error", "malformed_response"]
 EvidenceKind = Literal[
     "registry_metadata",
     "maintainer",
@@ -25,6 +26,28 @@ class MetadataEvidence(TypedDict):
     summary: str
     source: str
     confidence: float
+
+
+class RegistryMetadata(TypedDict):
+    """Structured metadata returned by the PyPI project JSON API."""
+
+    first_release_at: str | None
+    release_count: int | None
+    latest_release_at: str | None
+    project_urls: dict[str, str]
+    maintainer_hints: list[str]
+    source_hints: list[str]
+
+
+class RegistryDiagnostics(TypedDict):
+    """Bounded request details for evaluation and safe failure reporting."""
+
+    latency_ms: float
+    attempts: int
+    http_status: int | None
+    retry_after: str | None
+    rate_limit_remaining: str | None
+    error: str | None
 
 
 class SimilarityCandidate(TypedDict):
@@ -56,3 +79,6 @@ class DependencyResult(TypedDict):
     severity: Severity
     remediation: str
     source_locations: NotRequired[list[SourceLocation]]
+    registry_status: NotRequired[RegistryLookupStatus]
+    registry_metadata: NotRequired[RegistryMetadata]
+    registry_diagnostics: NotRequired[RegistryDiagnostics]

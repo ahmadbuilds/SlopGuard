@@ -12,6 +12,7 @@ SCHEMA_PATH = ROOT / "schemas" / "dependency-result.schema.json"
 SAMPLE_PATHS = (
     ROOT / "examples" / "result.json",
     ROOT / "examples" / "extracted-dependency.json",
+    ROOT / "examples" / "registry-result.json",
 )
 
 
