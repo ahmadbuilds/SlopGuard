@@ -177,8 +177,8 @@ packages; the scoring stage decides their weight.
 
 ## PyPI registry lookup
 
-`slopguard.registry.PyPIClient` queries the public project JSON endpoint at
-`https://pypi.org/pypi/<normalized-name>/json`. The
+`slopguard.registry.PyPIClient` queries the public project JSON endpoint built by
+`slopguard.pypi.project_json_url` for the normalized name. The
 [PyPI JSON API documentation](https://docs.pypi.org/api/json/) describes this response as project
 metadata and release information. SlopGuard reads JSON only; it never fetches distribution URLs,
 installs a package, imports it, or executes candidate code.
@@ -197,6 +197,11 @@ The response parser extracts:
   available.
 - `source_hints`: project URLs labeled as source/repository/code, plus common source-host links.
 
+Publisher-controlled text is bounded while parsing: at most 20 maintainer hints of 200 characters
+each, 50 project URLs with labels up to 100 characters and URLs up to 256 characters, and 20
+source hints are retained. Unicode control (`Cc`) and format/invisible (`Cf`) characters are
+removed. Overlong URLs are dropped; retained text is not HTML- or Markdown-escaped by this layer.
+
 PyPI currently documents the project `releases` object as deprecated and recommends the Index API
 when release listing is needed. If the key is absent, SlopGuard reports release count and upload
 dates as unknown while preserving the successful `exists` result. PyPI's JSON API documentation
@@ -210,7 +215,8 @@ contents.
 | `exists` | HTTP 200 with valid project metadata and a matching project name. | `true` |
 | `not_found` | PyPI returned HTTP 404. | `false` |
 | `transient_error` | Timeout, transport failure, rate limit, or other non-success HTTP response. | `null` |
-| `malformed_response` | Invalid JSON or response structure, a mismatched project name, or a response exceeding the size cap. | `null` |
+| `malformed_response` | Invalid JSON or response structure, unsupported content encoding, a mismatched project name, truncated gzip, or a response exceeding a size cap. | `null` |
+| `invalid_name` | The requested name fails `canonicalize_name(..., validate=True)`; no request is sent. | `null` |
 
 Unknown states do not add not-found evidence and do not alter the candidate's risk score or
 severity. A confirmed 404 is recorded as a sourced fact; it is not, by itself, proof of malicious
@@ -218,17 +224,33 @@ intent.
 
 ### Request bounds and diagnostics
 
-Each `PyPIClient` has a 3-second request timeout, a 2 MB response cap, one retry by default, and
-exponential backoff from 100 ms capped at 500 ms. HTTP 429 and 5xx responses are retried; a numeric
-or HTTP-date `Retry-After` value is honored only up to the same cap. All results, including
-failures, are cached by normalized name for that client instance, which is the per-run cache
-boundary.
+Each `PyPIClient` has a per-attempt total request deadline, a 3-second timeout, one retry by
+default, and exponential backoff from 100 ms capped at 500 ms. These policy values are configurable
+in the `[registry]` table; hard ceilings of 10 seconds, two retries, and one second of backoff
+cannot be raised by config. HTTP 408, 429, 5xx responses, and transport exceptions are retried
+within those bounds. A numeric or HTTP-date `Retry-After` value is also capped by the configured
+maximum delay.
+
+The request asks PyPI for gzip. Response transfer bytes are capped at 8 MB (compressed when gzip),
+and decoded documents at 32 MB. Gzip is decoded incrementally with an output limit; identity
+responses are also checked against the document cap. Oversized, truncated, or unsupported
+responses remain unknown (`malformed_response`), never `not_found`.
+
+Each client caches results by normalized name behind a lock. Concurrent lookups for the same name
+share one in-flight request, and callers receive independent copies of the result. Transport
+exceptions are reported by exception class only so exception text cannot echo untrusted details.
 
 `registry_diagnostics` records total latency including retries and backoff, attempt count, final
 HTTP status, available `Retry-After`, `RateLimit-Remaining`, and `X-RateLimit-Remaining` headers,
 and a bounded error/recovery note. The implementation uses an injectable HTTP transport so tests
 can cover all states without network access. The complete example is
 [`registry-result.json`](tests/fixtures/contract/registry-result.json).
+
+### Limitations
+
+The client connects directly and ignores `HTTP_PROXY` and `HTTPS_PROXY`. On a runner that requires
+a proxy, every lookup becomes `transient_error` (`unknown`); it is never treated as `not_found` and
+never blocks a merge.
 
 ## Security model
 
