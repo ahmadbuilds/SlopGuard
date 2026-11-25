@@ -5,7 +5,14 @@ from pathlib import Path
 
 import pytest
 
-from slopguard.pypi import PyPIMetadataError, parse_project_response
+from slopguard.pypi import (
+    MAX_MAINTAINER_HINT_LENGTH,
+    MAX_MAINTAINER_HINTS,
+    MAX_PROJECT_URLS,
+    MAX_SOURCE_HINTS,
+    PyPIMetadataError,
+    parse_project_response,
+)
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "pypi"
 
@@ -85,6 +92,93 @@ def test_malformed_project_url_does_not_crash_response_parsing() -> None:
 
     assert metadata["project_urls"] == {}
     assert metadata["source_hints"] == []
+
+
+def test_maintainer_hints_are_length_and_count_bounded() -> None:
+    payload = json.dumps(
+        {
+            "info": {"name": "example", "maintainer": "A" * 10_000},
+            "ownership": {
+                "roles": [{"role": "owner", "user": f"user-{index}"} for index in range(50)]
+            },
+        }
+    )
+
+    metadata = parse_project_response(payload)
+
+    assert len(metadata["maintainer_hints"]) == MAX_MAINTAINER_HINTS
+    assert metadata["maintainer_hints"][0] == "A" * MAX_MAINTAINER_HINT_LENGTH
+    assert all(len(hint) <= MAX_MAINTAINER_HINT_LENGTH for hint in metadata["maintainer_hints"])
+
+
+def test_project_url_count_is_bounded() -> None:
+    project_urls = {
+        f"Source {index}": f"https://github.com/example/project-{index}"
+        for index in range(MAX_PROJECT_URLS + 10)
+    }
+
+    metadata = parse_project_response(
+        json.dumps({"info": {"name": "example", "project_urls": project_urls}})
+    )
+
+    assert len(metadata["project_urls"]) == MAX_PROJECT_URLS
+    assert len(metadata["source_hints"]) == MAX_SOURCE_HINTS
+
+
+def test_control_characters_are_removed_from_project_url_labels() -> None:
+    metadata = parse_project_response(
+        json.dumps(
+            {
+                "info": {
+                    "name": "example",
+                    "project_urls": {"So\x00urce": "https://example.com/source"},
+                }
+            }
+        )
+    )
+
+    assert metadata["project_urls"] == {"Source": "https://example.com/source"}
+    assert metadata["source_hints"] == ["https://example.com/source"]
+
+
+def test_invisible_unicode_is_removed_from_hints_and_project_urls() -> None:
+    metadata = parse_project_response(
+        json.dumps(
+            {
+                "info": {
+                    "name": "example",
+                    "maintainer": "evil\u202egnp.exe\u200b\u2066",
+                    "project_urls": {
+                        "So\u202eurce\u200b\u2066": "https://example.com/so\u200burce\u2066"
+                    },
+                },
+                "ownership": {"roles": [{"role": "ow\u202ener", "user": "al\u200bice\u2066"}]},
+            }
+        )
+    )
+
+    assert metadata["maintainer_hints"] == ["evilgnp.exe", "Owner: alice"]
+    assert metadata["project_urls"] == {"Source": "https://example.com/source"}
+    assert metadata["source_hints"] == ["https://example.com/source"]
+
+
+def test_overlong_project_url_is_dropped_without_truncation() -> None:
+    long_url = "https://example.com/" + "x" * 480
+    metadata = parse_project_response(
+        json.dumps({"info": {"name": "example", "project_urls": {"Homepage": long_url}}})
+    )
+
+    assert len(long_url) == 500
+    assert metadata["project_urls"] == {}
+
+
+def test_html_in_maintainer_hint_is_not_escaped() -> None:
+    html_hint = "<b>Alice</b>"
+    metadata = parse_project_response(
+        json.dumps({"info": {"name": "example", "maintainer": html_hint}})
+    )
+
+    assert metadata["maintainer_hints"] == [html_hint]
 
 
 @pytest.mark.parametrize(
