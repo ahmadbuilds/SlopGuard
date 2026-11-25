@@ -13,7 +13,9 @@ from typing import Literal, NotRequired, TypedDict
 Severity = Literal["info", "low", "medium", "high", "critical"]
 Decision = Literal["pass", "warn", "block"]
 ScoreSignal = Literal["not_found", "lookalike", "new_package", "few_releases", "missing_source"]
-RegistryLookupStatus = Literal["exists", "not_found", "transient_error", "malformed_response"]
+RegistryLookupStatus = Literal[
+    "exists", "not_found", "transient_error", "malformed_response", "invalid_name"
+]
 EvidenceKind = Literal[
     "registry_metadata",
     "maintainer",

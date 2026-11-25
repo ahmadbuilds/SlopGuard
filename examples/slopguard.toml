@@ -11,6 +11,16 @@ block_threshold = 80
 # Unknown registry results warn by default; "pass" removes that floor.
 on_unknown = "warn"
 
+[registry]
+# Maximum duration for one HTTP request, including DNS, TLS and body reads.
+timeout_seconds = 3.0
+# Additional attempts after retryable HTTP or transport failures.
+max_retries = 1
+# Initial exponential retry delay in seconds.
+backoff_seconds = 0.1
+# Upper bound for each retry delay in seconds.
+max_backoff_seconds = 0.5
+
 [scoring.severity]
 # Lower bound for low severity.
 low = 20

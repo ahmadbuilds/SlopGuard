@@ -9,6 +9,7 @@ from slopguard.config import (
     MAX_CONFIG_BYTES,
     AllowlistEntry,
     ConfigError,
+    RegistrySettings,
     SlopGuardConfig,
     load_config,
     parse_config,
@@ -27,7 +28,14 @@ def test_example_configuration_matches_dataclass_defaults() -> None:
 def test_same_settings_under_pyproject_tool_table_parse_identically() -> None:
     standalone = EXAMPLE.read_text(encoding="utf-8")
     pyproject_config = standalone.replace("version = 1", "tool.slopguard.version = 1", 1)
-    for table in ("policy", "scoring.severity", "scoring.weights", "scoring.signals", "similarity"):
+    for table in (
+        "policy",
+        "registry",
+        "scoring.severity",
+        "scoring.weights",
+        "scoring.signals",
+        "similarity",
+    ):
         pyproject_config = pyproject_config.replace(f"[{table}]", f"[tool.slopguard.{table}]")
     pyproject_config = pyproject_config.replace("[[allowlist]]", "[[tool.slopguard.allowlist]]")
 
@@ -64,6 +72,11 @@ def test_pyproject_without_slopguard_table_ignores_other_tables() -> None:
         ("[policy]\nrogue = 1", "policy.rogue"),
         ("[[allowlist]]\nname='demo'\nreason='test'\nrogue=1", "allowlist[1].rogue"),
         ("[policy]\nmode = 1", "policy.mode"),
+        ("[registry]\nunknown = 1", "registry.unknown"),
+        ("[registry]\ntimeout_seconds = 11", "registry.timeout_seconds"),
+        ("[registry]\nmax_retries = 3", "registry.max_retries"),
+        ("[registry]\nbackoff_seconds = 1.1", "registry.backoff_seconds"),
+        ("[registry]\nmax_backoff_seconds = true", "registry.max_backoff_seconds"),
         ("[policy]\nwarn_threshold = true", "policy.warn_threshold"),
         ("[similarity]\ntop_n = true", "similarity"),
         ("[similarity]\nunknown_setting = 1", "similarity.unknown_setting"),
@@ -96,6 +109,11 @@ def test_pyproject_without_slopguard_table_ignores_other_tables() -> None:
         "nested-unknown",
         "allowlist-unknown",
         "wrong-type",
+        "registry-unknown-key",
+        "registry-timeout-ceiling",
+        "registry-retry-ceiling",
+        "registry-backoff-ceiling",
+        "registry-backoff-type",
         "bool-as-number",
         "similarity-bool-as-int",
         "similarity-unknown",
@@ -181,6 +199,10 @@ def test_pyproject_without_slopguard_table_uses_defaults(tmp_path: Path) -> None
 def test_missing_explicit_path_is_an_error(tmp_path: Path) -> None:
     with pytest.raises(ConfigError, match="config.path"):
         load_config(tmp_path / "missing.toml", root=tmp_path)
+
+
+def test_registry_settings_default_values() -> None:
+    assert SlopGuardConfig().registry == RegistrySettings()
 
 
 def test_allowlist_names_are_canonical_and_expiry_is_explicit() -> None:

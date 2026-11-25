@@ -1,14 +1,26 @@
 """Controlled-response tests for the PyPI HTTP client."""
 
+import gzip
+import http.client
 import ssl
 import threading
 import time
+import zlib
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
 
 import slopguard.registry as registry
-from slopguard.registry import HTTPResponse, PyPIClient
+from slopguard import __version__
+from slopguard.config import RegistrySettings
+from slopguard.pypi import project_json_url
+from slopguard.registry import (
+    MAX_COMPRESSED_BYTES,
+    MAX_DOCUMENT_BYTES,
+    HTTPResponse,
+    PyPIClient,
+)
 
 SAMPLE = (Path(__file__).resolve().parents[1] / "fixtures/pypi/sampleproject.json").read_bytes()
 
@@ -41,7 +53,196 @@ def test_known_project_is_normalized_and_metadata_is_returned() -> None:
     assert result.metadata is not None
     assert result.metadata["release_count"] == 2
     assert result.latency_ms == 125.0
-    assert calls == [("https://pypi.org/pypi/fast-api/json", 3.0, 2_000_000)]
+    assert calls == [(project_json_url("fast-api"), 3.0, MAX_COMPRESSED_BYTES)]
+
+
+def test_project_json_url_encodes_name_and_user_agent_uses_package_version() -> None:
+    assert project_json_url("package/name") == "https://pypi.org/pypi/package%2Fname/json"
+    assert __version__ in registry.USER_AGENT
+
+
+def test_transport_sends_gzip_and_versioned_user_agent(monkeypatch: pytest.MonkeyPatch) -> None:
+    wire_response = b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n"
+
+    class CapturingSocket:
+        request = bytearray()
+        offset = 0
+
+        def send(self, payload: memoryview) -> int:
+            self.request.extend(payload)
+            return len(payload)
+
+        def recv_into(self, buffer: bytearray) -> int:
+            count = min(len(buffer), len(wire_response) - self.offset)
+            if count == 0:
+                return 0
+            buffer[:count] = wire_response[self.offset : self.offset + count]
+            self.offset += count
+            return count
+
+        def close(self) -> None:
+            pass
+
+    connection = CapturingSocket()
+    monkeypatch.setattr(registry, "_connect_tls", lambda *_args: connection)
+    monkeypatch.setattr(registry, "_wait_for_socket", lambda *_args, **_kwargs: None)
+
+    response = registry._fetch_project_json(
+        project_json_url("sampleproject"), 1.0, MAX_COMPRESSED_BYTES
+    )
+    request = connection.request.decode("ascii")
+
+    assert response.status_code == 404
+    assert "Accept-Encoding: gzip\r\n" in request
+    assert f"User-Agent: SlopGuard/{__version__} (+" in request
+
+
+def test_invalid_names_do_not_call_the_transport() -> None:
+    for name in ("Requests_", ".."):
+        calls = 0
+
+        def transport(_url: str, _timeout: float, _max_bytes: int) -> HTTPResponse:
+            nonlocal calls
+            calls += 1
+            return HTTPResponse(404, b"", {})
+
+        result = PyPIClient(transport=transport).lookup(name)
+
+        assert result.status == "invalid_name"
+        assert result.registry_exists is None
+        assert calls == 0
+
+
+def test_gzip_project_larger_than_four_megabytes_is_accepted() -> None:
+    document = b'{"info":{"name":"sampleproject"},"padding":"' + b"x" * 4_194_304 + b'"}'
+    assert len(document) >= 4_000_000
+    response = HTTPResponse(200, gzip.compress(document), {"Content-Encoding": "gzip"})
+    client, _calls = _client(response)
+
+    result = client.lookup("sampleproject")
+
+    assert result.status == "exists"
+    assert result.registry_exists is True
+
+
+def test_identity_content_encoding_is_accepted() -> None:
+    client, _calls = _client(HTTPResponse(200, SAMPLE, {"Content-Encoding": "identity"}))
+
+    result = client.lookup("sampleproject")
+
+    assert result.status == "exists"
+
+
+def test_gzip_bomb_over_document_cap_is_malformed() -> None:
+    compressed = gzip.compress(b"x" * (MAX_DOCUMENT_BYTES + 1))
+    assert len(compressed) < MAX_COMPRESSED_BYTES
+    client, _calls = _client(HTTPResponse(200, compressed, {"Content-Encoding": "gzip"}))
+
+    result = client.lookup("sampleproject")
+
+    assert result.status == "malformed_response"
+    assert result.registry_exists is None
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        HTTPResponse(200, SAMPLE, {"Content-Encoding": "br"}),
+        HTTPResponse(
+            200,
+            gzip.compress(SAMPLE)[:-4],
+            {"Content-Encoding": "gzip"},
+        ),
+    ],
+    ids=["unsupported-encoding", "truncated-gzip"],
+)
+def test_unsupported_or_truncated_encoding_is_malformed(response: HTTPResponse) -> None:
+    client, _calls = _client(response)
+
+    result = client.lookup("sampleproject")
+
+    assert result.status == "malformed_response"
+    assert result.registry_exists is None
+
+
+@pytest.mark.parametrize(
+    ("error_type", "message"),
+    [
+        (ValueError, "private transport detail"),
+        (http.client.BadStatusLine, "private transport detail"),
+        (OSError, "private transport detail"),
+        (ssl.SSLError, "private transport detail"),
+        (zlib.error, "private transport detail"),
+    ],
+)
+def test_transport_exceptions_are_retried_and_safely_reported(
+    error_type: type[Exception], message: str
+) -> None:
+    calls = 0
+
+    def transport(_url: str, _timeout: float, _max_bytes: int) -> HTTPResponse:
+        nonlocal calls
+        calls += 1
+        raise error_type(message)
+
+    result = PyPIClient(transport=transport, sleeper=lambda _delay: None).lookup("sampleproject")
+
+    assert calls == 2
+    assert result.status == "transient_error"
+    assert result.registry_exists is None
+    assert result.attempts == 2
+    assert result.error == f"Registry request failed ({error_type.__name__})."
+    assert message not in result.error
+
+
+@pytest.mark.parametrize("error_type", [KeyboardInterrupt, SystemExit])
+def test_base_exceptions_from_transport_propagate(error_type: type[BaseException]) -> None:
+    def transport(_url: str, _timeout: float, _max_bytes: int) -> HTTPResponse:
+        raise error_type
+
+    with pytest.raises(error_type):
+        PyPIClient(transport=transport).lookup("sampleproject")
+
+
+def test_from_settings_uses_registry_configuration() -> None:
+    settings = RegistrySettings(timeout_seconds=2, max_retries=0, backoff_seconds=0)
+    client = PyPIClient.from_settings(settings, transport=lambda *_args: HTTPResponse(404, b"", {}))
+
+    result = client.lookup("sampleproject")
+
+    assert client.timeout_seconds == 2
+    assert client.max_retries == 0
+    assert result.status == "not_found"
+
+
+def test_concurrent_lookups_share_inflight_request_and_return_independent_results() -> None:
+    calls = 0
+    calls_lock = threading.Lock()
+    entered = threading.Event()
+    release = threading.Event()
+
+    def transport(_url: str, _timeout: float, _max_bytes: int) -> HTTPResponse:
+        nonlocal calls
+        with calls_lock:
+            calls += 1
+        entered.set()
+        assert release.wait(timeout=2)
+        return HTTPResponse(200, SAMPLE, {})
+
+    client = PyPIClient(transport=transport)
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        futures = [pool.submit(client.lookup, "sampleproject") for _ in range(8)]
+        assert entered.wait(timeout=1)
+        time.sleep(0.05)
+        release.set()
+        results = [future.result(timeout=2) for future in futures]
+
+    assert calls == 1
+    assert all(result == results[0] for result in results)
+    assert len({id(result) for result in results}) == len(results)
+    assert all(result.metadata is not results[0].metadata for result in results[1:])
+    results[0].metadata["project_urls"].clear()
+    assert results[1].metadata["project_urls"]
 
 
 def test_not_found_is_distinct_from_registry_failure() -> None:
@@ -68,6 +269,7 @@ def test_not_found_is_distinct_from_registry_failure() -> None:
         (HTTPResponse(200, b"{}", {}), "malformed_response"),
         (HTTPResponse(200, b'{"info":{"name":"other-package"}}', {}), "malformed_response"),
         (HTTPResponse(200, SAMPLE, {}, too_large=True), "malformed_response"),
+        (HTTPResponse(404, b"", {"Content-Encoding": "br"}), "malformed_response"),
     ],
 )
 def test_http_and_payload_failures_keep_registry_state_safe(

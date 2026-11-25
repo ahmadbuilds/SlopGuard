@@ -9,7 +9,7 @@ from jsonschema import Draft202012Validator
 
 from slopguard.contracts import load_result_schema
 from slopguard.extractor import ChangedFile, extract_dependencies
-from slopguard.pypi import parse_project_response
+from slopguard.pypi import parse_project_response, project_json_url
 from slopguard.registry import HTTPResponse, PyPIClient
 from slopguard.registry_result import apply_registry_lookup
 
@@ -49,6 +49,24 @@ def test_existing_project_enriches_candidate_with_evidence_and_metadata() -> Non
     assert enriched["source_locations"] == [
         {"file": "requirements.txt", "line": 1, "source_type": "requirements"}
     ]
+    assert all(
+        item["source"] == project_json_url("sampleproject")
+        for item in enriched["metadata_evidence"]
+    )
+
+
+def test_invalid_name_result_is_unknown_and_adds_no_evidence() -> None:
+    candidate = _candidate()
+    candidate["requested_name"] = "Requests_"
+    candidate["normalized_name"] = "requests-"
+    client = PyPIClient(transport=lambda *_args: pytest.fail("invalid names must not be sent"))
+
+    enriched = apply_registry_lookup(candidate, client.lookup("Requests_"))
+
+    VALIDATOR.validate(enriched)
+    assert enriched["registry_status"] == "invalid_name"
+    assert enriched["registry_exists"] is None
+    assert enriched["metadata_evidence"] == candidate["metadata_evidence"]
 
 
 def test_not_found_adds_registry_fact_without_changing_risk_score() -> None:

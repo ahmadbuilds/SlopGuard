@@ -3,13 +3,38 @@
 from __future__ import annotations
 
 import json
+import unicodedata
 from datetime import UTC, datetime
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 from packaging.utils import canonicalize_name
 
 from .contracts import RegistryMetadata
+
+PYPI_HOST = "pypi.org"
+PROJECT_JSON_PATH_TEMPLATE = "/pypi/{name}/json"
+
+# Registry metadata is publisher-controlled; these limits keep emitted hints bounded.
+MAX_MAINTAINER_HINT_LENGTH = 200
+MAX_MAINTAINER_HINTS = 20
+MAX_PROJECT_URL_LABEL_LENGTH = 100
+MAX_PROJECT_URL_LENGTH = 256
+MAX_PROJECT_URLS = 50
+MAX_SOURCE_HINTS = 20
+
+# These labels and hosts are heuristics for identifying likely source repositories.
+SOURCE_LABELS: frozenset[str] = frozenset({"source", "repository", "code", "source code"})
+SOURCE_HOSTS: frozenset[str] = frozenset(
+    {"github.com", "gitlab.com", "bitbucket.org", "codeberg.org"}
+)
+
+
+def project_json_url(name: str) -> str:
+    """Build the canonical HTTPS URL for a PyPI project JSON request."""
+
+    path = PROJECT_JSON_PATH_TEMPLATE.format(name=quote(name, safe=""))
+    return f"https://{PYPI_HOST}{path}"
 
 
 class PyPIMetadataError(ValueError):
@@ -96,9 +121,24 @@ def _project_urls(value: Any) -> dict[str, str]:
         return {}
     urls: dict[str, str] = {}
     for label, url in value.items():
-        if isinstance(label, str) and isinstance(url, str) and _is_web_url(url):
-            urls[label.strip()] = url.strip()
+        if not isinstance(label, str) or not isinstance(url, str):
+            continue
+        clean_label = _strip_invisible_characters(label).strip()
+        clean_url = _strip_invisible_characters(url).strip()
+        if not clean_label or len(clean_url) > MAX_PROJECT_URL_LENGTH:
+            continue
+        clean_label = clean_label[:MAX_PROJECT_URL_LABEL_LENGTH]
+        if _is_web_url(clean_url):
+            urls[clean_label] = clean_url
+            if len(urls) >= MAX_PROJECT_URLS:
+                break
     return urls
+
+
+def _strip_invisible_characters(value: str) -> str:
+    return "".join(
+        character for character in value if unicodedata.category(character) not in {"Cc", "Cf"}
+    )
 
 
 def _is_web_url(value: str) -> bool:
@@ -111,37 +151,45 @@ def _is_web_url(value: str) -> bool:
 
 def _maintainer_hints(info: dict[str, Any], ownership: Any) -> list[str]:
     hints: list[str] = []
+    seen: set[str] = set()
+
+    def add_hint(value: str) -> None:
+        cleaned = _strip_invisible_characters(value).strip()[:MAX_MAINTAINER_HINT_LENGTH]
+        if cleaned and cleaned not in seen and len(hints) < MAX_MAINTAINER_HINTS:
+            seen.add(cleaned)
+            hints.append(cleaned)
+
     maintainer = info.get("maintainer")
-    if isinstance(maintainer, str) and maintainer.strip():
-        hints.append(maintainer.strip())
+    if isinstance(maintainer, str):
+        add_hint(maintainer)
 
     if isinstance(ownership, dict):
         roles = ownership.get("roles")
         if isinstance(roles, list):
             for entry in roles:
+                if len(hints) >= MAX_MAINTAINER_HINTS:
+                    break
                 if not isinstance(entry, dict):
                     continue
                 role = entry.get("role")
                 username = entry.get("user")
-                if isinstance(role, str) and isinstance(username, str) and username.strip():
-                    if role.lower() in {"owner", "maintainer"}:
-                        hints.append(f"{role.title()}: {username.strip()}")
-    return list(dict.fromkeys(hints))
+                if isinstance(role, str) and isinstance(username, str):
+                    clean_role = _strip_invisible_characters(role).strip()
+                    clean_username = _strip_invisible_characters(username).strip()
+                    if clean_role.lower() in {"owner", "maintainer"} and clean_username:
+                        add_hint(f"{clean_role.title()}: {clean_username}")
+    return hints
 
 
 def _source_hints(project_urls: dict[str, str]) -> list[str]:
-    source_labels = {"source", "repository", "code", "source code"}
     hints: list[str] = []
     for label, url in project_urls.items():
         try:
             host = (urlsplit(url).hostname or "").lower()
         except ValueError:
             continue
-        if label.strip().lower() in source_labels or host in {
-            "github.com",
-            "gitlab.com",
-            "bitbucket.org",
-            "codeberg.org",
-        }:
+        if label.strip().lower() in SOURCE_LABELS or host in SOURCE_HOSTS:
             hints.append(url)
+            if len(hints) >= MAX_SOURCE_HINTS:
+                break
     return list(dict.fromkeys(hints))
