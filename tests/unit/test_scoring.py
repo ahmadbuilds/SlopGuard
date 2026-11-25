@@ -265,6 +265,45 @@ def test_unknown_registry_floor_follows_on_unknown_setting(on_unknown: str, deci
     assert scored["decision"] == decision
 
 
+@pytest.mark.parametrize(("on_unknown", "decision"), [("warn", "warn"), ("pass", "pass")])
+def test_invalid_name_has_no_not_found_points_and_follows_unknown_policy(
+    on_unknown: str, decision: str
+) -> None:
+    defaults = blocking_config()
+    config = replace(
+        defaults,
+        policy=replace(defaults.policy, on_unknown=on_unknown),  # type: ignore[arg-type]
+    )
+
+    scored = score(make_result("invalid-name", status="invalid_name"), config)
+
+    assert scored["decision"] == decision
+    assert scored["allowlisted"] is False
+    assert contribution(scored, "not_found")["points"] == 0
+    assert "not a valid PyPI project name" in contribution(scored, "not_found")["summary"]
+    assert "Fix the dependency name" in scored["remediation"]
+    assert "exists" not in scored["remediation"].lower()
+
+
+def test_invalid_name_with_high_score_never_blocks() -> None:
+    defaults = blocking_config()
+    weights = replace(defaults.scoring.weights, lookalike=100)
+    scoring = replace(defaults.scoring, weights=weights)
+    config = replace(
+        defaults,
+        policy=replace(defaults.policy, on_unknown="pass"),
+        scoring=scoring,
+    )
+
+    scored = score(
+        make_result("invalid-name", status="invalid_name", matches=(match("valid-name", 1, 8),)),
+        config,
+    )
+
+    assert scored["risk_score"] >= config.policy.block_threshold
+    assert scored["decision"] == "warn"
+
+
 def test_import_only_not_found_lookalike_is_capped_at_warn() -> None:
     scored = score(
         make_result(

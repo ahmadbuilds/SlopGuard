@@ -40,7 +40,7 @@
     "severity": {"enum": ["info", "low", "medium", "high", "critical"]},
     "remediation": {"type": "string", "minLength": 1},
     "registry_status": {
-      "enum": ["exists", "not_found", "transient_error", "malformed_response"]
+      "enum": ["exists", "not_found", "transient_error", "malformed_response", "invalid_name"]
     },
     "registry_metadata": {"$ref": "#/$defs/registryMetadata"},
     "registry_diagnostics": {"$ref": "#/$defs/registryDiagnostics"},

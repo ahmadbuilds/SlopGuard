@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from urllib.parse import quote
 
 from packaging.utils import canonicalize_name
 
 from .contracts import DependencyResult, MetadataEvidence, RegistryDiagnostics
+from .pypi import project_json_url
 from .registry import RegistryLookupResult
 
 
@@ -29,7 +29,7 @@ def apply_registry_lookup(
     else:
         result.pop("registry_metadata", None)
 
-    api_url = f"https://pypi.org/pypi/{quote(lookup.normalized_name, safe='')}/json"
+    api_url = project_json_url(lookup.normalized_name)
     evidence = [entry for entry in result["metadata_evidence"] if entry.get("source") != api_url]
     additions = _evidence_for_lookup(lookup.status, lookup.metadata, api_url)
     for entry in additions:

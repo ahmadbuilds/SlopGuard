@@ -11,7 +11,7 @@ from slopguard.config import AllowlistEntry, ScoringSignals, SlopGuardConfig
 from slopguard.contracts import DependencyResult, ScoreContribution, ScoreSignal, Severity
 
 RISK_SCORE_RANGE = (0.0, 100.0)  # Fixed bounds in the versioned result contract.
-UNKNOWN_REGISTRY_STATUSES = frozenset({"transient_error", "malformed_response"})
+UNKNOWN_REGISTRY_STATUSES = frozenset({"transient_error", "malformed_response", "invalid_name"})
 
 
 def score_result(
@@ -37,7 +37,11 @@ def score_result(
     risk_score = round(min(max(raw_score, RISK_SCORE_RANGE[0]), RISK_SCORE_RANGE[1]), 2)
     severity = _severity_for_score(risk_score, config)
     decision = _policy_decision(result, risk_score, config)
-    allowlist_entry = config.allowlist_entry_for(result["normalized_name"], now=now)
+    allowlist_entry = (
+        None
+        if result.get("registry_status") == "invalid_name"
+        else config.allowlist_entry_for(result["normalized_name"], now=now)
+    )
     allowlisted = allowlist_entry is not None
     if allowlisted:
         decision = "pass"
@@ -83,6 +87,11 @@ def _not_found_contribution(
             "points": float(config.scoring.weights.not_found),
             "summary": f"PyPI returned not found for {result['requested_name']!r}.",
         }
+    if status == "invalid_name":
+        return _zero(
+            "not_found",
+            "The dependency name is not a valid PyPI project name; not-found points were not applied.",
+        )
     if status in UNKNOWN_REGISTRY_STATUSES or status is None:
         return _zero(
             "not_found",
@@ -334,6 +343,8 @@ def _remediation(
     recently_released: bool,
 ) -> str:
     requested_name = result["requested_name"]
+    if result.get("registry_status") == "invalid_name":
+        return f"Fix the dependency name {requested_name!r}; it is not a valid PyPI project name."
     if allowlist_entry is not None:
         exception = (
             f"This dependency is allowed by the configured exception: {allowlist_entry.reason}"
