@@ -17,6 +17,10 @@ from .similarity import SimilaritySettings
 # Bound parsing work for configuration files supplied by a repository.
 MAX_CONFIG_BYTES = 1_000_000
 MAX_CONFIG_VALUE_REPR = 100
+# Hard safety ceilings for repository-controlled registry policy values.
+MAX_REGISTRY_TIMEOUT_SECONDS = 10.0
+MAX_REGISTRY_RETRIES = 2
+MAX_REGISTRY_BACKOFF_SECONDS = 1.0
 
 
 def _short_value_repr(value: object) -> str:
@@ -47,6 +51,49 @@ class _SettingError(ValueError):
         self.key = key
         self.problem = problem
         self.value = value
+
+
+@dataclass(frozen=True, slots=True)
+class RegistrySettings:
+    """Validated timing and retry policy for PyPI registry requests."""
+
+    timeout_seconds: float = 3.0
+    max_retries: int = 1
+    backoff_seconds: float = 0.1
+    max_backoff_seconds: float = 0.5
+
+    def __post_init__(self) -> None:
+        _validate_number(
+            "timeout_seconds",
+            self.timeout_seconds,
+            minimum=0,
+            maximum=MAX_REGISTRY_TIMEOUT_SECONDS,
+        )
+        if self.timeout_seconds <= 0:
+            raise _SettingError("timeout_seconds", "must be greater than 0", self.timeout_seconds)
+        _validate_integer("max_retries", self.max_retries, minimum=0)
+        if self.max_retries > MAX_REGISTRY_RETRIES:
+            raise _SettingError(
+                "max_retries", f"must be at most {MAX_REGISTRY_RETRIES}", self.max_retries
+            )
+        _validate_number(
+            "backoff_seconds",
+            self.backoff_seconds,
+            minimum=0,
+            maximum=MAX_REGISTRY_BACKOFF_SECONDS,
+        )
+        _validate_number(
+            "max_backoff_seconds",
+            self.max_backoff_seconds,
+            minimum=0,
+            maximum=MAX_REGISTRY_BACKOFF_SECONDS,
+        )
+        if self.backoff_seconds > self.max_backoff_seconds:
+            raise _SettingError(
+                "backoff_seconds",
+                "cannot exceed max_backoff_seconds",
+                self.backoff_seconds,
+            )
 
 
 def _validate_number(
@@ -232,6 +279,7 @@ class SlopGuardConfig:
 
     version: int = 1
     policy: PolicySettings = field(default_factory=PolicySettings)
+    registry: RegistrySettings = field(default_factory=RegistrySettings)
     scoring: ScoringSettings = field(default_factory=ScoringSettings)
     similarity: SimilaritySettings = field(default_factory=SimilaritySettings)
     allowlist: tuple[AllowlistEntry, ...] = ()
@@ -241,6 +289,8 @@ class SlopGuardConfig:
             raise ValueError("configuration version must be 1")
         if not isinstance(self.policy, PolicySettings):
             raise ValueError("policy must be PolicySettings")
+        if not isinstance(self.registry, RegistrySettings):
+            raise ValueError("registry must be RegistrySettings")
         if not isinstance(self.scoring, ScoringSettings):
             raise ValueError("scoring must be ScoringSettings")
         if not isinstance(self.similarity, SimilaritySettings):
@@ -466,7 +516,7 @@ def parse_config(
     if not config_table:
         return SlopGuardConfig()
 
-    allowed_keys = {"version", "policy", "scoring", "similarity", "allowlist"}
+    allowed_keys = {"version", "policy", "registry", "scoring", "similarity", "allowlist"}
     _reject_unknown(config_table, allowed_keys, source=source, path="config")
     defaults = SlopGuardConfig()
     version = config_table.get("version", defaults.version)
@@ -476,6 +526,7 @@ def parse_config(
         raise ConfigError(source, "version", "unsupported version", version)
 
     policy_table = _expect_table(config_table.get("policy", {}), source=source, key="policy")
+    registry_table = _expect_table(config_table.get("registry", {}), source=source, key="registry")
     scoring_table = _expect_table(config_table.get("scoring", {}), source=source, key="scoring")
     severity_table = _expect_table(
         scoring_table.get("severity", {}), source=source, key="scoring.severity"
@@ -499,6 +550,13 @@ def parse_config(
         source=source,
         path="policy",
         defaults=defaults.policy,
+    )
+    registry = _construct_settings(
+        RegistrySettings,
+        registry_table,
+        source=source,
+        path="registry",
+        defaults=defaults.registry,
     )
     severity = _construct_settings(
         SeveritySettings,
@@ -533,6 +591,7 @@ def parse_config(
         return SlopGuardConfig(
             version=version,
             policy=policy,
+            registry=registry,
             scoring=scoring,
             similarity=similarity,
             allowlist=allowlist,
