@@ -17,6 +17,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
+from importlib.metadata import PackageNotFoundError, metadata
 from urllib.parse import urlsplit
 
 from packaging.utils import InvalidName, canonicalize_name
@@ -31,8 +32,22 @@ from .pypi import PYPI_HOST, PyPIMetadataError, parse_project_response, project_
 MAX_COMPRESSED_BYTES = 8_000_000
 MAX_DOCUMENT_BYTES = 32_000_000
 DEFAULT_REGISTRY_SETTINGS = RegistrySettings()
-REPOSITORY_URL = "https://github.com/ahmadbuilds/SlopGuard"
-USER_AGENT = f"SlopGuard/{__version__} (+{REPOSITORY_URL})"
+FALLBACK_REPOSITORY_URL = "https://github.com/ahmadbuilds/SlopGuard"
+
+
+def _repository_url() -> str:
+    try:
+        project_urls = metadata("slopguard").get_all("Project-URL") or []
+    except PackageNotFoundError:
+        project_urls = []
+    for project_url in project_urls:
+        label, separator, url = project_url.partition(",")
+        if separator and label.strip().lower() == "repository" and url.strip():
+            return url.strip()
+    return FALLBACK_REPOSITORY_URL
+
+
+USER_AGENT = f"SlopGuard/{__version__} (+{_repository_url()})"
 _READ_CHUNK_BYTES = 64 * 1024
 _MAX_HEADER_BYTES = 64 * 1024
 _MAX_CONCURRENT_DNS_LOOKUPS = 16
@@ -123,6 +138,21 @@ class PyPIClient:
             backoff_seconds=settings.backoff_seconds,
             max_backoff_seconds=settings.max_backoff_seconds,
             transport=transport,
+        )
+
+    def with_settings(self, settings: RegistrySettings) -> PyPIClient:
+        """Return a fresh client with scan-specific limits and the same transport hooks."""
+
+        if not isinstance(settings, RegistrySettings):
+            raise TypeError("settings must be RegistrySettings")
+        return PyPIClient(
+            timeout_seconds=settings.timeout_seconds,
+            max_retries=settings.max_retries,
+            backoff_seconds=settings.backoff_seconds,
+            max_backoff_seconds=settings.max_backoff_seconds,
+            transport=self._transport,
+            clock=self._clock,
+            sleeper=self._sleeper,
         )
 
     def lookup(self, package_name: str) -> RegistryLookupResult:

@@ -1,0 +1,46 @@
+{
+  "contract_version": "1.0.0",
+  "tool_version": "0.1.0",
+  "generated_at": "2026-05-01T00:00:00Z",
+  "repository": "sample-project",
+  "base_sha": "0123456789abcdef",
+  "merge_base_sha": "0123456789abcdef",
+  "head_sha": "fedcba9876543210",
+  "config_source": "slopguard.toml",
+  "config_changed": false,
+  "decision": "block",
+  "counts": {
+    "by_decision": {"pass": 0, "warn": 0, "block": 1},
+    "by_severity": {"info": 0, "low": 0, "medium": 0, "high": 0, "critical": 1}
+  },
+  "results": [
+    {
+      "contract_version": "1.0.0",
+      "requested_name": "reqeusts",
+      "normalized_name": "reqeusts",
+      "registry_exists": false,
+      "registry_status": "not_found",
+      "metadata_evidence": [],
+      "similarity_candidates": [
+        {
+          "name": "requests",
+          "similarity": 0.875,
+          "registry_exists": true,
+          "edit_distance": 1,
+          "popularity_rank": 8,
+          "match_kind": "edit"
+        }
+      ],
+      "risk_score": 95.0,
+      "severity": "critical",
+      "remediation": "Verify whether requests was intended.",
+      "score_contributions": [
+        {"signal": "not_found", "points": 60.0, "summary": "PyPI returned HTTP 404."}
+      ],
+      "decision": "block",
+      "allowlisted": false
+    }
+  ],
+  "warnings": [],
+  "lookups": {"used": 1, "budget": 500}
+}

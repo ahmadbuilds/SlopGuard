@@ -1,0 +1,65 @@
+name: SlopGuard
+description: Check pull-request Python dependencies for missing and look-alike PyPI packages.
+author: Ahmad Builds
+branding:
+  icon: shield
+  color: orange
+inputs:
+  config:
+    description: Optional repository-relative SlopGuard TOML configuration path.
+    required: false
+    default: ""
+  report-path:
+    description: Where to write the JSON scan report.
+    required: false
+    default: ""
+  python-version:
+    description: Python version used to run SlopGuard.
+    required: false
+    default: "3.11"
+  fail-on-block:
+    description: Return a failing status when the scan decision is block.
+    required: false
+    default: "true"
+outputs:
+  decision:
+    description: Overall scan decision (pass, warn, or block).
+    value: ${{ steps.scan.outputs.decision }}
+  blocked:
+    description: New dependencies with a block decision, one per line.
+    value: ${{ steps.scan.outputs.blocked }}
+  warned:
+    description: New dependencies with a warn decision, one per line.
+    value: ${{ steps.scan.outputs.warned }}
+  report-path:
+    description: Path to the generated JSON scan report.
+    value: ${{ steps.scan.outputs.report-path }}
+runs:
+  using: composite
+  steps:
+    - name: Set up uv and Python
+      uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+      with:
+        enable-cache: true
+        cache-dependency-glob: ${{ github.action_path }}/uv.lock
+        python-version: ${{ inputs.python-version }}
+    - name: Scan pull request dependencies
+      id: scan
+      shell: bash
+      env:
+        SLOPGUARD_CONFIG: ${{ inputs.config }}
+        SLOPGUARD_REPORT_PATH: ${{ inputs.report-path }}
+        SLOPGUARD_FAIL_ON_BLOCK: ${{ inputs.fail-on-block }}
+        SLOPGUARD_RUNNER_TEMP: ${{ runner.temp }}
+      run: |
+        if [[ -z "$SLOPGUARD_REPORT_PATH" ]]; then
+          SLOPGUARD_REPORT_PATH="$SLOPGUARD_RUNNER_TEMP/slopguard-report.json"
+        fi
+        args=(scan --repo "$GITHUB_WORKSPACE" --report "$SLOPGUARD_REPORT_PATH")
+        if [[ -n "$SLOPGUARD_CONFIG" ]]; then
+          args+=(--config "$SLOPGUARD_CONFIG")
+        fi
+        if [[ "$SLOPGUARD_FAIL_ON_BLOCK" != "true" ]]; then
+          args+=(--no-fail-on-block)
+        fi
+        uv run --no-config --project "$GITHUB_ACTION_PATH" --locked --no-dev slopguard "${args[@]}"

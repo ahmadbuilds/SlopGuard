@@ -9,6 +9,7 @@ from slopguard.config import (
     MAX_CONFIG_BYTES,
     AllowlistEntry,
     ConfigError,
+    GitSettings,
     RegistrySettings,
     SlopGuardConfig,
     load_config,
@@ -25,6 +26,19 @@ def test_example_configuration_matches_dataclass_defaults() -> None:
     assert config == SlopGuardConfig()
 
 
+def test_scan_limits_are_validated_and_defaulted() -> None:
+    assert SlopGuardConfig().registry.max_concurrency == 8
+    assert SlopGuardConfig().registry.max_lookups == 500
+    assert GitSettings().fetch_depth == 1000
+    for text, key in (
+        ("[registry]\nmax_concurrency = 33", "registry.max_concurrency"),
+        ("[registry]\nmax_lookups = 10001", "registry.max_lookups"),
+        ("[git]\nfetch_depth = 10001", "git.fetch_depth"),
+    ):
+        with pytest.raises(ConfigError, match=key):
+            parse_config(text, source="test")
+
+
 def test_same_settings_under_pyproject_tool_table_parse_identically() -> None:
     standalone = EXAMPLE.read_text(encoding="utf-8")
     pyproject_config = standalone.replace("version = 1", "tool.slopguard.version = 1", 1)
@@ -34,6 +48,7 @@ def test_same_settings_under_pyproject_tool_table_parse_identically() -> None:
         "scoring.severity",
         "scoring.weights",
         "scoring.signals",
+        "git",
         "similarity",
     ):
         pyproject_config = pyproject_config.replace(f"[{table}]", f"[tool.slopguard.{table}]")

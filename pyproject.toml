@@ -5,16 +5,39 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "slopguard"
 version = "0.1.0"
-description = "A Python-only PyPI package risk scanner MVP."
+description = "A GitHub Action that detects suspicious Python dependencies before they merge."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
 dependencies = ["packaging>=23.2,<27"]
+keywords = ["dependency-security", "pypi", "typosquatting", "github-action"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Security",
+    "Topic :: Software Development :: Quality Assurance",
+]
+
+[project.urls]
+Homepage = "https://github.com/ahmadbuilds/SlopGuard"
+Repository = "https://github.com/ahmadbuilds/SlopGuard"
+Issues = "https://github.com/ahmadbuilds/SlopGuard/issues"
+
+[project.scripts]
+slopguard = "slopguard.cli:main"
 
 [dependency-groups]
 dev = [
     "jsonschema==4.23.0",
     "pre-commit==4.7.0",
+    "PyYAML==6.0.4",
     "pytest==8.3.3",
     "ruff==0.17.6",
 ]

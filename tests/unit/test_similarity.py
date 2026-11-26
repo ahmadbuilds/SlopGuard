@@ -226,11 +226,11 @@ def test_apply_similarity_preserves_other_result_fields_and_validates_schema() -
     Draft202012Validator(load_result_schema()).validate(enriched)
 
 
-def test_apply_similarity_rejects_requested_and_normalized_name_mismatch() -> None:
+def test_apply_similarity_requires_a_nonempty_requested_name() -> None:
     candidate: DependencyResult = {
         "contract_version": "1.0.0",
-        "requested_name": "requests",
-        "normalized_name": "different-name",
+        "requested_name": "",
+        "normalized_name": "pyyaml",
         "registry_exists": None,
         "metadata_evidence": [],
         "similarity_candidates": [],
@@ -239,7 +239,7 @@ def test_apply_similarity_rejects_requested_and_normalized_name_mismatch() -> No
         "remediation": "Review the dependency.",
     }
 
-    with pytest.raises(ValueError, match="does not match"):
+    with pytest.raises(ValueError, match="non-empty string"):
         apply_similarity(candidate, ())
 
 

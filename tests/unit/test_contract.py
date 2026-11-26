@@ -5,8 +5,9 @@ from pathlib import Path
 
 import pytest
 from jsonschema import Draft202012Validator
+from referencing import Registry, Resource
 
-from slopguard.contracts import load_result_schema
+from slopguard.contracts import load_result_schema, load_scan_report_schema
 
 ROOT = Path(__file__).resolve().parents[2]
 SCHEMA = load_result_schema()
@@ -16,6 +17,17 @@ VALIDATOR = Draft202012Validator(SCHEMA)
 
 def test_example_matches_contract_schema() -> None:
     VALIDATOR.validate(SAMPLE)
+
+
+def test_scan_report_fixture_matches_contract_schema() -> None:
+    report = json.loads(
+        (ROOT / "tests/fixtures/contract/scan-report.json").read_text(encoding="utf-8")
+    )
+    dependency_schema = load_result_schema()
+    registry = Registry().with_resource(
+        dependency_schema["$id"], Resource.from_contents(dependency_schema)
+    )
+    Draft202012Validator(load_scan_report_schema(), registry=registry).validate(report)
 
 
 def test_unknown_registry_state_is_allowed() -> None:

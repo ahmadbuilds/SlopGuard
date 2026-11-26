@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ahmadbuilds/SlopGuard/blob/main/src/slopguard/schemas/scan-report.schema.json",
+  "title": "SlopGuard scan report",
+  "description": "Versioned report for one pull-request dependency scan.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "tool_version",
+    "generated_at",
+    "repository",
+    "base_sha",
+    "merge_base_sha",
+    "head_sha",
+    "config_source",
+    "config_changed",
+    "decision",
+    "counts",
+    "results",
+    "warnings",
+    "lookups"
+  ],
+  "properties": {
+    "contract_version": {"const": "1.0.0"},
+    "tool_version": {"type": "string", "minLength": 1},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "repository": {"type": "string", "minLength": 1},
+    "base_sha": {"type": "string", "minLength": 1},
+    "merge_base_sha": {"type": "string", "minLength": 1},
+    "head_sha": {"type": "string", "minLength": 1},
+    "config_source": {"type": "string", "minLength": 1},
+    "config_changed": {"type": "boolean"},
+    "decision": {"enum": ["pass", "warn", "block"]},
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by_decision", "by_severity"],
+      "properties": {
+        "by_decision": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["pass", "warn", "block"],
+          "properties": {
+            "pass": {"type": "integer", "minimum": 0},
+            "warn": {"type": "integer", "minimum": 0},
+            "block": {"type": "integer", "minimum": 0}
+          }
+        },
+        "by_severity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["info", "low", "medium", "high", "critical"],
+          "properties": {
+            "info": {"type": "integer", "minimum": 0},
+            "low": {"type": "integer", "minimum": 0},
+            "medium": {"type": "integer", "minimum": 0},
+            "high": {"type": "integer", "minimum": 0},
+            "critical": {"type": "integer", "minimum": 0}
+          }
+        }
+      }
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "$ref": "https://github.com/ahmadbuilds/SlopGuard/blob/main/src/slopguard/schemas/dependency-result.schema.json"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file", "line", "message", "kind"],
+        "properties": {
+          "file": {"type": "string"},
+          "line": {"type": ["integer", "null"], "minimum": 1},
+          "message": {"type": "string", "minLength": 1},
+          "kind": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "lookups": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["used", "budget"],
+      "properties": {
+        "used": {"type": "integer", "minimum": 0},
+        "budget": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

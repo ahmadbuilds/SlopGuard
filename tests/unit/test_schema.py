@@ -17,7 +17,7 @@ def test_packaged_schema_is_valid_draft_2020_12() -> None:
 
 def test_contract_fixtures_validate_against_packaged_schema() -> None:
     validator = Draft202012Validator(SCHEMA)
-    fixtures = sorted(FIXTURES.glob("*.json"))
+    fixtures = sorted(path for path in FIXTURES.glob("*.json") if path.name != "scan-report.json")
 
     assert fixtures, "expected at least one JSON contract fixture"
     for fixture in fixtures:

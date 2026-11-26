@@ -9,9 +9,10 @@ scoring, and presentation stages.
 
 The extractor and response parser are pure: they parse input text and JSON but never install,
 import, or execute a package. The registry client reads PyPI project JSON only. Registry failures
-remain unknown and do not become evidence that a project is absent or malicious. The current
-repository implements extraction, bounded PyPI lookup, merging registry evidence, offline
-look-alike detection, configuration and scoring; presentation is still planned.
+remain unknown and do not become evidence that a project is absent or malicious. The repository
+implements extraction, bounded Git reads, scan orchestration, bounded PyPI lookup, merging registry
+evidence, offline look-alike detection, configuration and scoring. CLI presentation and the
+published GitHub Action compose the scan as a CLI and composite action.
 
 ## Result contract
 
@@ -20,6 +21,11 @@ Contract version `1.0.0` is defined by
 The package exposes the typed `DependencyResult` shape and `load_result_schema()` through
 `slopguard.contracts`. Checked-in JSON contract examples are in `tests/fixtures/contract/`.
 Serialized consumers should validate results against the JSON Schema.
+
+The scan report is defined by
+[`src/slopguard/schemas/scan-report.schema.json`](src/slopguard/schemas/scan-report.schema.json)
+and `load_scan_report_schema()`. Its fixture is `tests/fixtures/contract/scan-report.json`; each
+entry in `results` references the dependency-result schema.
 
 ### Fields
 
@@ -83,7 +89,7 @@ failure. Scoring is evidence for review, not a malware verdict.
 
 Configuration is loaded in this order: explicit path, repository `slopguard.toml`, the
 `[tool.slopguard]` table in `pyproject.toml`, then built-in defaults. `parse_config` accepts TOML
-text without file access. SG-06 must read the PR's base-commit configuration, not the proposed head
+text without file access. A PR scan reads policy from the target base SHA, not the proposed head
 configuration, so a PR cannot loosen the policy used to evaluate itself.
 
 ### Compatibility
@@ -165,6 +171,32 @@ requirements files must be passed separately as changed files. A head Python syn
 a warning; if only the base file cannot be parsed, its imports are treated as empty and a warning is
 emitted. The extractor does not access the network, resolve markers, infer imports from unchanged
 code, install packages, or execute project code.
+
+## Pull request scan flow
+
+`slopguard.scan.run_scan` accepts a `GitRepository`, repository identifier, base and head commits,
+an injected registry client, and a fixed UTC time. It ensures both commits are available before
+reading trees, then loads policy from the target base tip: an explicit configuration path wins,
+followed by `slopguard.toml`, `[tool.slopguard]` in `pyproject.toml`, and built-in defaults. A
+malformed base configuration stops the scan. `config_changed` compares the base-tip policy with
+the effective head policy, but the head never controls the current decision. Dependency changes
+are still computed from the merge base. The base-tip `project.name` and head tree paths identify
+local imports.
+
+`slopguard.git.GitRepository` invokes Git with argument lists, disables fsmonitor and terminal
+prompts, and bounds each command by time and output. It reads raw NUL-delimited diffs, follows
+rename paths to their base blobs, and skips deleted files, symlinks and submodules. Blobs are size
+checked before reading and decoded as UTF-8; invalid or oversized files become report warnings.
+Shallow clones first fetch missing base/head commits from `origin`, then can be deepened to find a
+merge base up to the target base tip's `git.fetch_depth` limit. Invalid base configuration uses the
+safe default fetch depth and is reported as a configuration error after Git history recovery.
+
+Changed supported files pass through the pure extractor. Registry lookups use at most
+`registry.max_concurrency` workers and `registry.max_lookups` requests per scan. Candidates beyond
+the budget receive a transient unknown result, which can warn but cannot block. Similarity and
+scoring use the base-tip configuration and packaged popularity snapshot. Results and warnings
+are sorted deterministically. A report without a scored decision is an internal error; no findings
+produce a `pass` report with zero counts.
 
 To keep processing bounded, non-Python changed files are skipped with a warning when their combined
 base and head content exceeds 2,000 lines or 1,000,000 characters. Python files use AST comparison
