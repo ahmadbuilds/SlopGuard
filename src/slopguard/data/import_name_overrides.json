@@ -1,0 +1,24 @@
+{
+  "overrides": {
+    "cv2": {
+      "distribution": "opencv-python",
+      "reason": "Several OpenCV builds provide cv2; rank picks the headless build, but opencv-python is the reference distribution."
+    },
+    "ldap": {
+      "distribution": "python-ldap",
+      "reason": "python-ldap publishes no wheel (sdist only)."
+    },
+    "opentelemetry.sdk": {
+      "distribution": "opentelemetry-sdk",
+      "reason": "opentelemetry-sdk ships opentelemetry/sdk/__init__.pyi but no __init__.py, so the generator sees an implicit namespace and only maps its subpackages."
+    },
+    "pkg_resources": {
+      "distribution": "setuptools",
+      "reason": "Provided by older setuptools releases; recent wheels no longer ship it, so the generator cannot see it."
+    },
+    "win32con": {
+      "distribution": "pywin32",
+      "reason": "pywin32 installs this module through a .pth path at install time; it is not a top-level entry in the wheel."
+    }
+  }
+}
