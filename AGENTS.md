@@ -55,9 +55,11 @@ merge. It reads registry metadata only. Information Security term project, FAST-
 
 ## Architecture
 
-- `src/slopguard/contracts.py` and `src/slopguard/schemas/`: the shared result contract.
+- `src/slopguard/contracts.py` and `src/slopguard/schemas/`: dependency-result and scan-report contracts.
 - `src/slopguard/extractor.py`: finds dependencies a PR adds (offline, pure);
   `import_names.py` loads generated import-name data plus reviewed overrides. Do not edit mappings in code.
+- `src/slopguard/git.py` and `scan.py`: bounded Git reads and injected pull-request scan orchestration.
+- `src/slopguard/cli.py` and `action.yml`: CLI parsing, report output, and the composite GitHub Action.
 - `src/slopguard/registry.py`, `pypi.py`, `registry_result.py`: bounded PyPI lookups, response
   parsing, and merging registry evidence into results.
 - `src/slopguard/similarity.py` and `src/slopguard/data/`: offline look-alike detection against the
@@ -68,12 +70,11 @@ merge. It reads registry metadata only. Information Security term project, FAST-
 - `.github/workflows/ci.yml`: lint and tests on every PR and push to `main`.
   `.github/workflows/release.yml`: on a `v*` tag, reruns the checks, publishes a GitHub Release
   and moves the major tag (`v1`) that users reference as `ahmadbuilds/SlopGuard@v1`.
+- `.github/workflows/slopguard.yml` and `examples/workflow.yml`: the repository's scan and the
+  reusable published-action workflow example.
 
 ## Planned modules (each lands with its Linear issue)
 
-- `src/slopguard/cli.py` and `action.yml`: the `slopguard scan` entry point and the published
-  GitHub Action; the CLI parses arguments, calls the scan and formats output, with no business
-  logic (SG-06). `examples/workflow.yml` lands with it.
 - `src/slopguard/report.py`: check summary, annotations and PR comment (SG-07).
 - `evals/`: labeled evaluation set and metrics script; never imported by the package (SG-08).
 
