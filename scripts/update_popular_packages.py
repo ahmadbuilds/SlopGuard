@@ -9,9 +9,8 @@ import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from urllib.error import URLError
-from urllib.request import urlopen
 
+from _http import HTTPFetchError, get
 from packaging.utils import InvalidName, canonicalize_name
 
 DEFAULT_SOURCE_URL = (
@@ -19,7 +18,6 @@ DEFAULT_SOURCE_URL = (
 )
 DEFAULT_LIMIT = 5000
 GENERATOR_VERSION = "1"
-REQUEST_TIMEOUT_SECONDS = 20
 
 
 class SnapshotUpdateError(ValueError):
@@ -104,12 +102,9 @@ def transform_popular_packages(
 def _download_source(source_url: str) -> bytes:
     """Fetch source JSON with a finite timeout."""
 
-    if not source_url.startswith("https://"):
-        raise SnapshotUpdateError("The source URL must use HTTPS.")
     try:
-        with urlopen(source_url, timeout=REQUEST_TIMEOUT_SECONDS) as response:
-            return response.read()
-    except (OSError, URLError, TimeoutError) as error:
+        return get(source_url)
+    except HTTPFetchError as error:
         raise SnapshotUpdateError(f"Could not fetch popular-package source: {error}") from error
 
 
