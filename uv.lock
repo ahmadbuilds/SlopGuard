@@ -431,6 +431,7 @@ dev = [
     { name = "jsonschema" },
     { name = "pre-commit" },
     { name = "pytest" },
+    { name = "pyyaml" },
     { name = "ruff" },
 ]
 
@@ -442,6 +443,7 @@ dev = [
     { name = "jsonschema", specifier = "==4.23.0" },
     { name = "pre-commit", specifier = "==4.7.0" },
     { name = "pytest", specifier = "==8.3.3" },
+    { name = "pyyaml", specifier = "==6.0.4" },
     { name = "ruff", specifier = "==0.17.6" },
 ]
 
