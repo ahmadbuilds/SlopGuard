@@ -1,11 +1,15 @@
 """Fixtures for supported syntax, source context, and diff-only behavior."""
 
+from __future__ import annotations
+
 import json
+from collections.abc import Generator
 from pathlib import Path
 
 import pytest
 from jsonschema import Draft202012Validator
 
+import slopguard.import_names as import_names
 from slopguard.contracts import load_result_schema
 from slopguard.extractor import (
     ChangedFile,
@@ -17,6 +21,80 @@ ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "tests" / "fixtures"
 SCHEMA = load_result_schema()
 VALIDATOR = Draft202012Validator(SCHEMA)
+
+
+@pytest.fixture
+def generated_import_name_fixture(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Generator[None, None, None]:
+    module_distributions = {
+        "jwt": "pyjwt",
+        "dotenv": "python-dotenv",
+        "Crypto": "pycryptodome",
+        "attr": "attrs",
+        "serial": "pyserial",
+        "skimage": "scikit-image",
+        "magic": "python-magic",
+        "docx": "python-docx",
+        "pptx": "python-pptx",
+        "jose": "python-jose",
+        "OpenSSL": "pyopenssl",
+        "usb": "pyusb",
+        "git": "gitpython",
+        "github": "pygithub",
+        "telegram": "python-telegram-bot",
+        "slugify": "python-slugify",
+        "MySQLdb": "mysqlclient",
+        "fitz": "pymupdf",
+        "zmq": "pyzmq",
+        "socks": "pysocks",
+        "nacl": "pynacl",
+        "dns": "dnspython",
+        "kafka": "kafka-python",
+        "googleapiclient": "google-api-python-client",
+        "pkg_resources": "setuptools",
+        "mpl_toolkits": "matplotlib",
+        "win32api": "pywin32",
+        "win32con": "pywin32",
+        "ldap": "python-ldap",
+        "google.protobuf": "protobuf",
+        "google.cloud.storage": "google-cloud-storage",
+        "google.generativeai": "google-generativeai",
+        "azure.storage.blob": "azure-storage-blob",
+        "azure.identity": "azure-identity",
+    }
+    documents = {
+        "import_name_overrides.json": {"overrides": {}},
+        "import_names.json": {
+            "mappings": {
+                module: {"distribution": distribution, "wheel": "fixture.whl"}
+                for module, distribution in module_distributions.items()
+            },
+            "namespace_roots": ["google", "azure", "zope", "backports"],
+        },
+        "stdlib_modules.json": {"modules": []},
+    }
+
+    class ResourceFile:
+        def __init__(self, contents: dict[str, object]):
+            self.contents = contents
+
+        def joinpath(self, *_parts: str) -> ResourceFile:
+            return self
+
+        def read_text(self, _encoding: str) -> str:
+            return json.dumps(self.contents)
+
+    class PackageResources:
+        def joinpath(self, *_parts: str) -> ResourceFile:
+            return ResourceFile(documents[_parts[-1]])  # type: ignore[arg-type]
+
+    monkeypatch.setattr(import_names.resources, "files", lambda _package: PackageResources())
+    import_names._mapping_data.cache_clear()
+    import_names.stdlib_modules.cache_clear()
+    yield
+    import_names._mapping_data.cache_clear()
+    import_names.stdlib_modules.cache_clear()
 
 
 def _read(path: Path) -> str:
@@ -392,7 +470,9 @@ def test_unchanged_top_level_local_test_helper_is_suppressed() -> None:
         ("ldap", "python-ldap"),
     ],
 )
-def test_import_names_map_to_distributions(module: str, distribution: str) -> None:
+def test_import_names_map_to_distributions(
+    module: str, distribution: str, generated_import_name_fixture: None
+) -> None:
     result = extract_dependencies([ChangedFile("app.py", "", f"import {module}\n")])
     assert [candidate["normalized_name"] for candidate in result.candidates] == [distribution]
 
@@ -407,18 +487,28 @@ def test_import_names_map_to_distributions(module: str, distribution: str) -> No
         ("azure.identity", "azure-identity"),
     ],
 )
-def test_dotted_import_prefixes_map_to_distributions(module: str, distribution: str) -> None:
+def test_dotted_import_prefixes_map_to_distributions(
+    module: str, distribution: str, generated_import_name_fixture: None
+) -> None:
     result = extract_dependencies([ChangedFile("app.py", "", f"import {module}\n")])
     assert [candidate["normalized_name"] for candidate in result.candidates] == [distribution]
 
 
 @pytest.mark.parametrize("module", ["google", "azure", "zope", "backports"])
-def test_unmapped_namespace_root_warns(module: str) -> None:
+def test_unmapped_namespace_root_warns(module: str, generated_import_name_fixture: None) -> None:
     result = extract_dependencies([ChangedFile("app.py", "", f"import {module}\n")])
     assert result.candidates == ()
     assert [warning.message for warning in result.warnings] == [
         f"Namespace import {module} could not be mapped to a PyPI distribution."
     ]
+
+
+def test_removed_standard_library_modules_are_not_dependencies() -> None:
+    result = extract_dependencies(
+        [ChangedFile("app.py", "", "import distutils\nimport imp\nimport cgi\n")]
+    )
+    assert result.candidates == ()
+    assert result.warnings == ()
 
 
 def test_new_manifest_dependency_is_not_suppressed_by_unchanged_import() -> None:

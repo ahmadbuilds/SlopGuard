@@ -133,6 +133,30 @@ result without `decision` as not evaluated, never as passed.
 - Changes in `setup.py`, `setup.cfg`, and `Pipfile` produce a manual-review warning; their
   dependency syntax is not interpreted, and `setup.py` imports are not treated as dependencies.
 
+The import-name map is packaged data: `data/import_names.json` is generated manually from the ranked
+popular-package snapshot by reading each project's latest PyPI release metadata and inspecting its
+wheel ZIP directory through bounded HTTPS byte ranges. The generator prefers `py3-none-any` wheels,
+then any wheel; it reads `top_level.txt` when present and otherwise derives names from wheel paths,
+including extension modules and dotted package prefixes. It ignores metadata/data directories,
+cache directories, invalid identifiers, and common test, documentation, example, benchmark, and
+script directories. No wheel is downloaded whole, extracted, installed, imported, or executed.
+For each module, the highest-ranked provider wins; its mapping is omitted only when a top-level
+module's canonical distribution name equals its canonical module name. Remaining providers are
+listed as conflicts. A directory is a shared namespace when at least two distributions contribute
+it and the highest-ranked contributor lacks its `__init__.py`. Lower-ranked add-ons do not turn a
+real package from a higher-ranked provider into a namespace. Namespace expansion runs globally only
+below shared top-level roots; it skips shared paths and traverses namespace directories to the first
+real package or module, up to its named depth limit. The generated header records the ignored
+top-level directory names. Reviewed exceptions belong in
+`data/import_name_overrides.json`; overrides win over generated entries. Run
+`uv run python scripts/generate_import_names.py` when intentionally refreshing the map, review the
+result and conflicts, and keep this generator out of CI and release workflows. Central directories
+are capped at 8 MB and 100,000 entries; selected `top_level.txt` data is capped at 1 MB compressed
+and 64 KB uncompressed. The map is heuristic: it cannot cover packages outside the popular-package
+snapshot, source-only releases without wheels, or modules created during installation.
+Standard-library names are a generated union across Python versions plus the current runtime list,
+so imports removed in newer Python versions remain excluded.
+
 Direct URLs, VCS/editable requirements, include directives, dynamic dependencies, Poetry dependency
 tables, malformed requirements, and malformed TOML are skipped with a file/line warning when their
 changed lines can be located. Global package index options receive a dedicated manual-review

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import ast
 import re
-import sys
 import tomllib
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -22,7 +21,7 @@ from packaging.utils import canonicalize_name
 
 from . import CONTRACT_VERSION
 from .contracts import DependencyResult, SourceLocation
-from .import_names import NAMESPACE_ROOTS, distribution_for_import
+from .import_names import distribution_for_import, namespace_roots, stdlib_modules
 
 SourceType = Literal["requirements", "pyproject", "import"]
 MAX_DIFF_INPUT_LINES = 2_000
@@ -759,7 +758,7 @@ def _extract_imports(
                 names = [node.module]
             for name in names:
                 root_name = name.split(".", maxsplit=1)[0]
-                if root_name in sys.stdlib_module_names or root_name in local_modules:
+                if root_name in stdlib_modules() or root_name in local_modules:
                     continue
                 distribution = distribution_for_import(name)
                 resolved_name = str(canonicalize_name(distribution or root_name))
@@ -773,7 +772,7 @@ def _extract_imports(
             continue
         root_name = full_name.split(".", maxsplit=1)[0]
         distribution = distribution_for_import(full_name)
-        if distribution is None and root_name in NAMESPACE_ROOTS:
+        if distribution is None and root_name in namespace_roots():
             warnings.append(
                 ExtractionWarning(
                     changed_file.path,
