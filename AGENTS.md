@@ -57,7 +57,7 @@ merge. It reads registry metadata only. Information Security term project, FAST-
 
 - `src/slopguard/contracts.py` and `src/slopguard/schemas/`: the shared result contract.
 - `src/slopguard/extractor.py`: finds dependencies a PR adds (offline, pure);
-  `import_names.py` maps import names to PyPI distribution names.
+  `import_names.py` loads generated import-name data plus reviewed overrides. Do not edit mappings in code.
 - `src/slopguard/registry.py`, `pypi.py`, `registry_result.py`: bounded PyPI lookups, response
   parsing, and merging registry evidence into results.
 - `src/slopguard/similarity.py` and `src/slopguard/data/`: offline look-alike detection against the

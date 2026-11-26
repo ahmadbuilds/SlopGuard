@@ -196,9 +196,12 @@ SlopGuard follows `AGENTS.md`: `src/slopguard/` contains the package modules, th
 extractor and metadata parsers are pure, `registry.py` owns bounded PyPI transport, schemas ship as
 package data, and tests are grouped into pure unit tests and I/O-oriented integration tests.
 
+Import-name mappings are generated data plus reviewed overrides; do not edit mappings in code.
+To change them, update the override data or run the manual generator and review its output.
+
 Example, "add a supported import-name mapping":
 ```
-src/slopguard/import_names.py        CHANGE  add the import-to-distribution mapping
+src/slopguard/data/import_name_overrides.json CHANGE  add the reviewed import mapping and reason
 tests/unit/test_extractor.py         CHANGE  cover the mapping through extraction
 ARCHITECTURE.md                      CHANGE  document the supported syntax if needed
 ```
