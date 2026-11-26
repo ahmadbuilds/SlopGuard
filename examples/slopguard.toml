@@ -20,6 +20,14 @@ max_retries = 1
 backoff_seconds = 0.1
 # Upper bound for each retry delay in seconds.
 max_backoff_seconds = 0.5
+# Maximum concurrent PyPI project metadata lookups.
+max_concurrency = 8
+# Maximum PyPI lookups in one scan; remaining candidates stay unknown and warn.
+max_lookups = 500
+
+[git]
+# Maximum history depth fetched to find a common ancestor in a shallow checkout.
+fetch_depth = 1000
 
 [scoring.severity]
 # Lower bound for low severity.

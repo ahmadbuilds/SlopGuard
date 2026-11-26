@@ -348,13 +348,13 @@ def apply_similarity(
 ) -> DependencyResult:
     """Return a deep-copied result with similarity evidence, without scoring it."""
 
+    requested_name = candidate["requested_name"]
+    if not isinstance(requested_name, str) or not requested_name.strip():
+        raise ValueError("Candidate requested name must be a non-empty string.")
     try:
-        requested_name = canonicalize_name(candidate["requested_name"], validate=True)
-        normalized_name = canonicalize_name(candidate["normalized_name"], validate=True)
-    except InvalidName as error:
-        raise ValueError("Candidate dependency name is invalid.") from error
-    if requested_name != normalized_name:
-        raise ValueError("Candidate dependency name does not match normalized name.")
+        canonicalize_name(candidate["normalized_name"], validate=True)
+    except (InvalidName, TypeError) as error:
+        raise ValueError("Candidate normalized dependency name is invalid.") from error
 
     result = deepcopy(candidate)
     similarity_candidates: list[SimilarityCandidate] = []

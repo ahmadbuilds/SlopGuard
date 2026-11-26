@@ -14,6 +14,7 @@ from slopguard.contracts import load_result_schema
 from slopguard.extractor import (
     ChangedFile,
     extract_dependencies,
+    is_supported_path,
     local_modules_from_paths,
 )
 
@@ -396,6 +397,24 @@ def test_optional_local_modules_suppress_first_party_imports() -> None:
     assert result.candidates == ()
 
 
+@pytest.mark.parametrize(
+    ("path", "supported"),
+    [
+        ("pyproject.toml", True),
+        ("requirements/base.in", True),
+        ("requirements.txt", True),
+        ("constraints-prod.txt", True),
+        ("src/package.py", True),
+        ("setup.cfg", True),
+        ("Pipfile", True),
+        ("notes.txt", False),
+        ("README.md", False),
+    ],
+)
+def test_supported_path_predicate(path: str, supported: bool) -> None:
+    assert is_supported_path(path) is supported
+
+
 def test_local_modules_from_repository_paths() -> None:
     assert local_modules_from_paths(
         [
@@ -426,6 +445,15 @@ def test_local_module_path_helper_suppresses_first_party_import() -> None:
         local_modules=local,
     )
     assert result.candidates == ()
+
+
+def test_python_file_inside_package_does_not_add_its_stem_as_local() -> None:
+    local = local_modules_from_paths(
+        ["src/slopguard/__init__.py", "src/slopguard/sub/__init__.py", "src/slopguard/sub/x.py"]
+    )
+
+    assert "slopguard" in local
+    assert "x" not in local
 
 
 def test_unchanged_top_level_local_test_helper_is_suppressed() -> None:

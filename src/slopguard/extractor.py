@@ -39,6 +39,20 @@ class ChangedFile:
     content: str
 
 
+def is_supported_path(value: str) -> bool:
+    """Return whether a repository path can produce dependency findings or warnings."""
+
+    path = PurePosixPath(value.replace("\\", "/"))
+    filename = path.name.lower()
+    if filename in {"pyproject.toml", "setup.py", "setup.cfg", "pipfile"}:
+        return True
+    if path.suffix.lower() == ".py":
+        return True
+    return path.suffix.lower() in {".txt", ".in"} and (
+        "requirement" in filename or "constraint" in filename or "requirements" in path.parts
+    )
+
+
 @dataclass(frozen=True)
 class ExtractionWarning:
     """A visible diagnostic for syntax that was not safely interpreted."""
@@ -104,6 +118,8 @@ def extract_dependencies(
     warnings: list[ExtractionWarning] = []
 
     for changed_file in changed_files:
+        if not is_supported_path(changed_file.path):
+            continue
         is_python = PurePosixPath(changed_file.path).suffix.lower() == ".py"
         if _diff_input_exceeds_limits(changed_file, ignore_line_limit=is_python):
             warnings.append(
@@ -197,9 +213,18 @@ def _local_python_module_names(changed_files: tuple[ChangedFile, ...]) -> set[st
 def local_modules_from_paths(paths: Iterable[str], project_name: str | None = None) -> set[str]:
     """Return top-level Python module names represented by repository paths."""
 
+    normalized_paths = tuple(PurePosixPath(value.replace("\\", "/")) for value in paths)
+    package_directories: set[tuple[str, ...]] = set()
+    for path in normalized_paths:
+        if path.suffix.lower() == ".py" and path.name == "__init__.py":
+            parts = path.parts
+            if parts and parts[0] in {"src", "lib"}:
+                parts = parts[1:]
+            package_directories.add(parts[:-1])
+
     names: set[str] = set()
-    for value in paths:
-        path = PurePosixPath(value.replace("\\", "/"))
+    for original_path in normalized_paths:
+        path = original_path
         if path.suffix.lower() != ".py":
             continue
         parts = list(path.parts)
@@ -211,7 +236,11 @@ def local_modules_from_paths(paths: Iterable[str], project_name: str | None = No
         if top != "__init__":
             names.add(top)
         stem = path.stem
-        if stem != "__init__":
+        parent = tuple(parts[:-1])
+        package_ancestor = any(
+            parent[:index] in package_directories for index in range(1, len(parent) + 1)
+        )
+        if stem != "__init__" and not package_ancestor:
             names.add(stem)
     if project_name:
         import_name = project_name.lower().replace("-", "_")

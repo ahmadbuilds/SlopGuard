@@ -21,6 +21,9 @@ MAX_CONFIG_VALUE_REPR = 100
 MAX_REGISTRY_TIMEOUT_SECONDS = 10.0
 MAX_REGISTRY_RETRIES = 2
 MAX_REGISTRY_BACKOFF_SECONDS = 1.0
+MAX_REGISTRY_CONCURRENCY = 32
+MAX_REGISTRY_LOOKUPS = 10_000
+MAX_GIT_FETCH_DEPTH = 10_000
 
 
 def _short_value_repr(value: object) -> str:
@@ -61,6 +64,8 @@ class RegistrySettings:
     max_retries: int = 1
     backoff_seconds: float = 0.1
     max_backoff_seconds: float = 0.5
+    max_concurrency: int = 8
+    max_lookups: int = 500
 
     def __post_init__(self) -> None:
         _validate_number(
@@ -93,6 +98,32 @@ class RegistrySettings:
                 "backoff_seconds",
                 "cannot exceed max_backoff_seconds",
                 self.backoff_seconds,
+            )
+        _validate_integer("max_concurrency", self.max_concurrency, minimum=1)
+        if self.max_concurrency > MAX_REGISTRY_CONCURRENCY:
+            raise _SettingError(
+                "max_concurrency",
+                f"must be at most {MAX_REGISTRY_CONCURRENCY}",
+                self.max_concurrency,
+            )
+        _validate_integer("max_lookups", self.max_lookups, minimum=0)
+        if self.max_lookups > MAX_REGISTRY_LOOKUPS:
+            raise _SettingError(
+                "max_lookups", f"must be at most {MAX_REGISTRY_LOOKUPS}", self.max_lookups
+            )
+
+
+@dataclass(frozen=True, slots=True)
+class GitSettings:
+    """Bounds for recovering merge bases in shallow Git checkouts."""
+
+    fetch_depth: int = 1000
+
+    def __post_init__(self) -> None:
+        _validate_integer("fetch_depth", self.fetch_depth, minimum=1)
+        if self.fetch_depth > MAX_GIT_FETCH_DEPTH:
+            raise _SettingError(
+                "fetch_depth", f"must be at most {MAX_GIT_FETCH_DEPTH}", self.fetch_depth
             )
 
 
@@ -280,6 +311,7 @@ class SlopGuardConfig:
     version: int = 1
     policy: PolicySettings = field(default_factory=PolicySettings)
     registry: RegistrySettings = field(default_factory=RegistrySettings)
+    git: GitSettings = field(default_factory=GitSettings)
     scoring: ScoringSettings = field(default_factory=ScoringSettings)
     similarity: SimilaritySettings = field(default_factory=SimilaritySettings)
     allowlist: tuple[AllowlistEntry, ...] = ()
@@ -291,6 +323,8 @@ class SlopGuardConfig:
             raise ValueError("policy must be PolicySettings")
         if not isinstance(self.registry, RegistrySettings):
             raise ValueError("registry must be RegistrySettings")
+        if not isinstance(self.git, GitSettings):
+            raise ValueError("git must be GitSettings")
         if not isinstance(self.scoring, ScoringSettings):
             raise ValueError("scoring must be ScoringSettings")
         if not isinstance(self.similarity, SimilaritySettings):
@@ -516,7 +550,7 @@ def parse_config(
     if not config_table:
         return SlopGuardConfig()
 
-    allowed_keys = {"version", "policy", "registry", "scoring", "similarity", "allowlist"}
+    allowed_keys = {"version", "policy", "registry", "git", "scoring", "similarity", "allowlist"}
     _reject_unknown(config_table, allowed_keys, source=source, path="config")
     defaults = SlopGuardConfig()
     version = config_table.get("version", defaults.version)
@@ -527,6 +561,7 @@ def parse_config(
 
     policy_table = _expect_table(config_table.get("policy", {}), source=source, key="policy")
     registry_table = _expect_table(config_table.get("registry", {}), source=source, key="registry")
+    git_table = _expect_table(config_table.get("git", {}), source=source, key="git")
     scoring_table = _expect_table(config_table.get("scoring", {}), source=source, key="scoring")
     severity_table = _expect_table(
         scoring_table.get("severity", {}), source=source, key="scoring.severity"
@@ -557,6 +592,13 @@ def parse_config(
         source=source,
         path="registry",
         defaults=defaults.registry,
+    )
+    git = _construct_settings(
+        GitSettings,
+        git_table,
+        source=source,
+        path="git",
+        defaults=defaults.git,
     )
     severity = _construct_settings(
         SeveritySettings,
@@ -592,6 +634,7 @@ def parse_config(
             version=version,
             policy=policy,
             registry=registry,
+            git=git,
             scoring=scoring,
             similarity=similarity,
             allowlist=allowlist,
