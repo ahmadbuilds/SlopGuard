@@ -12,36 +12,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
-        with:
-          enable-cache: true
-      - run: uv sync --locked
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
-      - run: uv run python scripts/sync_agent_skills.py --check
-
-  test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
-        with:
-          enable-cache: true
-      - run: uv sync --locked
-      - run: uv run pytest
+  checks:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
 
   release:
-    needs: [lint, test]
+    needs: checks
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -50,16 +27,24 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Validate release tag
+      - name: Validate release tag against project version
         id: validate-tag
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          if [[ ! "$RELEASE_TAG" =~ ^(v[0-9]+)\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Unexpected release tag format" >&2
-            exit 1
-          fi
-          echo "major_tag=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+          python - <<'PY'
+          import os
+          import re
+          import tomllib
+          from pathlib import Path
+
+          version = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
+          tag = os.environ["RELEASE_TAG"]
+          if not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", tag) or tag != f"v{version}":
+              raise SystemExit("Release tag must match v<project.version>.")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              print(f"major_tag=v{version.split('.')[0]}", file=output)
+          PY
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
