@@ -104,6 +104,34 @@ class DependencyResult(TypedDict):
     allowlisted: NotRequired[bool]
 
 
+class ScanWarning(TypedDict):
+    """One safe diagnostic from repository reading, extraction, or config checks."""
+
+    file: str
+    line: int | None
+    message: str
+    kind: str
+
+
+class ScanReport(TypedDict):
+    """Versioned machine-readable summary of one pull-request scan."""
+
+    contract_version: str
+    tool_version: str
+    generated_at: str
+    repository: str
+    base_sha: str
+    merge_base_sha: str
+    head_sha: str
+    config_source: str
+    config_changed: bool
+    decision: Decision
+    counts: dict[str, dict[str, int]]
+    results: list[DependencyResult]
+    warnings: list[ScanWarning]
+    lookups: dict[str, int]
+
+
 def load_result_schema() -> dict[str, object]:
     """Load the packaged JSON Schema for dependency results."""
 
@@ -112,4 +140,15 @@ def load_result_schema() -> dict[str, object]:
         schema = json.load(schema_file)
     if not isinstance(schema, dict):
         raise ValueError("The packaged dependency-result schema must be a JSON object.")
+    return schema
+
+
+def load_scan_report_schema() -> dict[str, object]:
+    """Load the packaged JSON Schema for complete scan reports."""
+
+    schema_resource = files("slopguard").joinpath("schemas", "scan-report.schema.json")
+    with schema_resource.open("r", encoding="utf-8") as schema_file:
+        schema = json.load(schema_file)
+    if not isinstance(schema, dict):
+        raise ValueError("The packaged scan-report schema must be a JSON object.")
     return schema
