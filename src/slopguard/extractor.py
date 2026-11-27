@@ -30,7 +30,6 @@ MAX_DIFF_INPUT_CHARACTERS = 1_000_000
 MAX_CHANGED_FILES = 1_000
 MAX_TOTAL_DIFF_INPUT_CHARACTERS = 20_000_000
 _SOURCE_ROOTS = frozenset({"lib", "src"})
-_TEST_ROOTS = frozenset({"test", "tests"})
 
 
 @dataclass(frozen=True)
@@ -77,7 +76,7 @@ def extract_dependencies(
     changed_files: Iterable[ChangedFile],
     *,
     local_modules: Iterable[str] | None = None,
-    local_modules_by_test_directory: Mapping[str, Iterable[str]] | None = None,
+    local_modules_by_directory: Mapping[str, Iterable[str]] | None = None,
 ) -> ExtractionResult:
     """Return dependencies added in requirements, pyproject, and Python imports.
 
@@ -162,12 +161,12 @@ def extract_dependencies(
                     )
                 continue
             modules_for_file = local_module_names
-            if local_modules_by_test_directory is not None:
-                test_modules = local_modules_by_test_directory.get(
+            if local_modules_by_directory is not None:
+                sibling_modules = local_modules_by_directory.get(
                     PurePosixPath(changed_file.path.replace("\\", "/")).parent.as_posix(), ()
                 )
-                if test_modules:
-                    modules_for_file = local_module_names | set(test_modules)
+                if sibling_modules:
+                    modules_for_file = local_module_names | set(sibling_modules)
             _extract_imports(changed_file, candidates, warnings, modules_for_file)
             continue
 
@@ -255,28 +254,15 @@ def local_modules_from_paths(paths: Iterable[str], project_name: str | None = No
     return names
 
 
-def local_test_modules_by_directory(paths: Iterable[str]) -> dict[str, set[str]]:
-    """Return test modules scoped to directories that contain Python test files."""
+def local_modules_by_directory(paths: Iterable[str]) -> dict[str, set[str]]:
+    """Return Python module names scoped to the directories that contain them."""
 
     normalized_paths = tuple(PurePosixPath(value.replace("\\", "/")) for value in paths)
-    test_directories = {
-        path.parent
-        for path in normalized_paths
-        if path.suffix.lower() == ".py"
-        and path.parts
-        and path.parts[0] in _TEST_ROOTS
-        and (
-            path.name.lower() == "conftest.py"
-            or path.name.lower().startswith("test_")
-            or path.name.lower().endswith("_test.py")
-        )
-    }
     modules_by_directory: dict[str, set[str]] = {}
     for path in normalized_paths:
         if path.suffix.lower() != ".py" or path.name == "__init__.py":
             continue
-        if path.parent in test_directories:
-            modules_by_directory.setdefault(path.parent.as_posix(), set()).add(path.stem)
+        modules_by_directory.setdefault(path.parent.as_posix(), set()).add(path.stem)
     return modules_by_directory
 
 

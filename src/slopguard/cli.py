@@ -202,7 +202,14 @@ def _summary(report: dict[str, object], report_path: str | None) -> str:
             if len(requested_name) > MAX_SUMMARY_NAME_CHARACTERS:
                 requested_name = requested_name[: MAX_SUMMARY_NAME_CHARACTERS - 1] + "…"
             name = _markdown(requested_name)
-            status = _markdown(item["registry_status"])
+            registry_status = item.get("registry_status")
+            if not isinstance(registry_status, str):
+                registry_status = (
+                    "not queried for active allow-list"
+                    if item.get("allowlisted") is True
+                    else "unknown"
+                )
+            status = _markdown(registry_status)
             decision = _markdown(item["decision"])
             lines.append(
                 f"- {name}: PyPI status `{status}`; policy decision `{decision}`. "

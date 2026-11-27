@@ -16,8 +16,8 @@ from slopguard.extractor import (
     ChangedFile,
     extract_dependencies,
     is_supported_path,
+    local_modules_by_directory,
     local_modules_from_paths,
-    local_test_modules_by_directory,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -440,10 +440,19 @@ def test_direct_modules_under_supported_import_roots_are_recognized() -> None:
     ) == {"requests", "yaml", "jwt", "tests"}
 
 
-def test_test_modules_are_scoped_to_the_directory_that_imports_them() -> None:
-    assert local_test_modules_by_directory(
-        ["tests/test_a.py", "tests/conftest_helpers.py", "tests/requests.py"]
-    ) == {"tests": {"test_a", "conftest_helpers", "requests"}}
+def test_modules_are_scoped_to_the_directory_that_imports_them() -> None:
+    assert local_modules_by_directory(
+        [
+            "tests/test_a.py",
+            "tests/conftest_helpers.py",
+            "tests/requests.py",
+            "scripts/run.py",
+            "scripts/helpers.py",
+        ]
+    ) == {
+        "tests": {"test_a", "conftest_helpers", "requests"},
+        "scripts": {"run", "helpers"},
+    }
 
 
 def test_module_stem_from_paths_suppresses_importable_local_helper() -> None:
@@ -451,7 +460,7 @@ def test_module_stem_from_paths_suppresses_importable_local_helper() -> None:
     result = extract_dependencies(
         [ChangedFile("tests/test_a.py", "", "import conftest_helpers\n")],
         local_modules=local,
-        local_modules_by_test_directory=local_test_modules_by_directory(
+        local_modules_by_directory=local_modules_by_directory(
             ["tests/test_a.py", "tests/conftest_helpers.py"]
         ),
     )

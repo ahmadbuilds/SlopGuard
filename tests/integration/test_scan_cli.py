@@ -129,6 +129,31 @@ def test_summary_marks_passed_unknown_registry_results_as_unverified() -> None:
     assert "not evidence that the package does not exist" in summary
 
 
+def test_summary_labels_active_allowlist_as_unqueried_registry_metadata() -> None:
+    report = {
+        "decision": "pass",
+        "counts": {"by_decision": {"pass": 1, "warn": 0, "block": 0}},
+        "config_changed": False,
+        "results": [
+            {
+                "decision": "pass",
+                "requested_name": "internal-package",
+                "registry_exists": None,
+                "allowlisted": True,
+                "metadata_evidence": [],
+            }
+        ],
+        "warnings": [],
+    }
+
+    summary = _summary(report, None)
+
+    assert r"internal\-package" in summary
+    assert "not queried" in summary
+    assert r"active allow\-list" in summary
+    assert "This package remains unverified" in summary
+
+
 def test_summary_keeps_unverified_results_visible_when_other_rows_are_truncated() -> None:
     results = [
         {
