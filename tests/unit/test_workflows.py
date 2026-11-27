@@ -80,6 +80,20 @@ def test_action_ignores_uv_configuration() -> None:
     action = _load_yaml(ACTION)
     scan_step = next(item for item in _walk(action) if item.get("id") == "scan")
     assert "uv run --no-config --project" in scan_step["run"]
+    assert "SLOPGUARD_COMMENT" in scan_step["env"]
+    assert "GITHUB_TOKEN" in scan_step["env"]
+    assert "GITHUB_API_URL" in scan_step["env"]
+    assert action["inputs"]["comment"]["default"] == "false"
+    assert action["inputs"]["github-token"]["default"] == "${{ github.token }}"
+
+
+def test_example_keeps_comment_opt_in_and_contents_read_only() -> None:
+    example = _load_yaml(ROOT / "examples/workflow.yml")
+    assert example["permissions"] == {"contents": "read"}
+    assert example["jobs"]["slopguard"]["steps"][-1]["with"].get("comment") is None
+    source = (ROOT / "examples/workflow.yml").read_text(encoding="utf-8")
+    assert "# pull-requests: write" in source
+    assert '# comment: "true"' in source
 
 
 def test_release_reuses_ci_workflow_and_ci_supports_workflow_call() -> None:
@@ -125,3 +139,10 @@ def test_wheel_package_discovery_excludes_evaluation_tools() -> None:
     assert package_discovery["where"] == ["src"]
     assert "evals" in package_discovery["exclude"]
     assert "evals.*" in package_discovery["exclude"]
+
+
+def test_action_exposes_token_only_when_comment_is_enabled() -> None:
+    action = (ROOT / "action.yml").read_text(encoding="utf-8")
+
+    assert "GITHUB_TOKEN: ${{ inputs.comment == 'true' && inputs.github-token || '' }}" in action
+    assert "GITHUB_TOKEN: ${{ inputs.github-token }}" not in action
