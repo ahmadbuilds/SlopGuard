@@ -8,6 +8,12 @@ always points at the latest `1.x.y` release.
 
 ## [Unreleased]
 
+### Security
+
+- Updated the development dependency pytest from 8.3.3 to 9.2.0 to fix GHSA-6w46-j5rx-g56g
+  (CVE-2025-71176), a local denial of service through `/tmp/pytest-of-{user}`. pytest is used
+  only to test SlopGuard; the Action does not install or run it.
+
 ## [1.0.0] - 2026-11-28
 
 First stable release of the SlopGuard GitHub Action.
