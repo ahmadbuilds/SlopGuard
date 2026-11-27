@@ -14,11 +14,17 @@ until they have been generated from reviewed sources.
 2. Build deterministic label subsets. Legitimate negatives come from ranks 5001–15000 in the
    separate evaluation popularity file, outside the packaged top-5000 comparison set. Each row
    records that file's SHA256, rank range, seed, and sample count. `--rank-min` and `--rank-max`
-   can adjust the sampled window; optional curated hard negatives can be added with `--curated`.
-3. Review labels and merge them. Duplicate PEP 503 canonical names are rejected rather than
+   can adjust the sampled window; `--lookalike-count` (default 50) also samples seeded, disjoint
+   known packages from that window that resemble the packaged popular-name snapshot. The stratum
+   fails clearly if too few eligible names exist; optional curated hard negatives can be added
+   with `--curated`.
+3. Merge labels. Duplicate PEP 503 canonical names are rejected rather than
    silently assigned conflicting classes. Borderline labels must be excluded from binary metrics.
 4. Record registry evidence once with the explicitly networked `record` command. The gzip file
-   starts with a recording header and then one serialized `RegistryLookupResult` per name.
+   starts with a recording header and then one serialized `RegistryLookupResult` per name. Then
+   run `evals.verify_labels` offline to check OSV, seeded synthetic generation, popularity ranks,
+   and recorded model outputs. Passed rows receive an automated reviewer; failed rows remain in
+   the dataset but are excluded from binary metrics.
 5. Run `evaluate` offline. It replays registry results at the recording's timestamp, so age-based
    signals use a fixed time. Default runs compare package defaults with the block example config.
    The recorded-state results are accompanied by an attack-time scenario that scores expected-flag
@@ -40,6 +46,10 @@ until they have been generated from reviewed sources.
    rows and a registry recording. `evaluate --real-prs` replays these stored candidates and does not
    clone repositories.
 
+Reports include stable provenance (tool and recording versions and input SHA256 values), label
+verification coverage, and stored real-PR selection parameters. The changing checkout commit and
+runtime are written to `run_info.json` only.
+
 Example commands (the defaults are also shown by each command's `--help`):
 
 ```sh
@@ -51,6 +61,7 @@ uv run python -m evals.build_legitimate --popular-file evals/data/popular_15000.
 uv run python -m evals.build_hallucinated --outputs evals/data/hallucinated_outputs.jsonl --count 100 --seed 11608
 uv run python -m evals.merge_labels evals/data/malicious.jsonl evals/data/synthetic.jsonl evals/data/legitimate.jsonl evals/data/hallucinated.jsonl --out evals/data/labels.jsonl
 uv run python -m evals.record --labels evals/data/labels.jsonl --registry evals/data/registry.jsonl.gz --concurrency 8
+uv run python -m evals.verify_labels --labels evals/data/labels.jsonl --registry evals/data/registry.jsonl.gz --osv-dir /tmp/malicious-packages --popular-file evals/data/popular_15000.json --outputs evals/data/hallucinated_outputs.jsonl --out evals/data/labels.jsonl
 uv run python -m evals.evaluate --labels evals/data/labels.jsonl --registry evals/data/registry.jsonl.gz --out-dir evals/results --attack-time-days 1 --attack-time-releases 1
 ```
 

@@ -8,10 +8,11 @@ import json
 import random
 from pathlib import Path
 
-from slopguard.similarity import PopularPackageIndex
+from slopguard.similarity import PopularPackageIndex, SimilaritySettings, find_lookalikes
 
 from .constants import (
     DEFAULT_LEGITIMATE_LABELS_PATH,
+    DEFAULT_LEGITIMATE_LOOKALIKE_COUNT,
     DEFAULT_LEGITIMATE_RANK_MAX,
     DEFAULT_LEGITIMATE_RANK_MIN,
     DEFAULT_LEGITIMATE_SAMPLE_COUNT,
@@ -26,17 +27,19 @@ def build_legitimate_labels(
     index: PopularPackageIndex,
     *,
     count: int = DEFAULT_LEGITIMATE_SAMPLE_COUNT,
+    lookalike_count: int = DEFAULT_LEGITIMATE_LOOKALIKE_COUNT,
     strata: int = DEFAULT_STRATA_COUNT,
     rank_min: int = DEFAULT_LEGITIMATE_RANK_MIN,
     rank_max: int = DEFAULT_LEGITIMATE_RANK_MAX,
     seed: int = DEFAULT_RANDOM_SEED,
     curated_path: Path | None = None,
     popular_sha256: str = "in-memory fixture",
+    comparison_index: PopularPackageIndex | None = None,
     added_by: str = "slopguard-evals",
 ) -> tuple[Label, ...]:
     """Sample snapshot names evenly across popularity ranks and append curated examples."""
 
-    if count < 0 or strata <= 0 or rank_min <= 0 or rank_max < rank_min:
+    if count < 0 or lookalike_count < 0 or strata <= 0 or rank_min <= 0 or rank_max < rank_min:
         raise ValueError("count/strata/rank range is invalid")
     if not popular_sha256.strip():
         raise ValueError("popular_sha256 must be non-empty")
@@ -90,6 +93,44 @@ def build_legitimate_labels(
                         reviewed_by=None,
                     )
                 )
+    if lookalike_count:
+        comparison = (
+            comparison_index if comparison_index is not None else PopularPackageIndex.load()
+        )
+        already_sampled = {row.name for row in sampled}
+        matches_by_name = {
+            package.name: find_lookalikes(package.name, comparison, SimilaritySettings())
+            for package in packages
+            if package.name not in already_sampled
+        }
+        lookalike_candidates = [
+            package for package in packages if matches_by_name.get(package.name)
+        ]
+        if len(lookalike_candidates) < lookalike_count:
+            raise ValueError(
+                f"requested {lookalike_count} lookalike negatives but only "
+                f"{len(lookalike_candidates)} candidates exist in ranks {rank_min}-{rank_max}"
+            )
+        for package in randomizer.sample(lookalike_candidates, lookalike_count):
+            match = matches_by_name[package.name][0]
+            sampled.append(
+                Label(
+                    name=package.name,
+                    label="legitimate",
+                    expected="pass",
+                    category="lookalike-legitimate",
+                    rationale=(
+                        f"Known package {package.name!r} resembles popular package "
+                        f"{match.name!r} (rank {match.popularity_rank})."
+                    ),
+                    source=(
+                        f"popular_file_sha256={popular_sha256}; rank_range={rank_min}-{rank_max}; "
+                        f"rank={package.rank}; seed={seed}; count={lookalike_count}"
+                    ),
+                    added_by=added_by,
+                    reviewed_by=None,
+                )
+            )
     if curated_path is not None:
         curated_rows = read_jsonl_objects(curated_path)
         for row_number, raw in enumerate(curated_rows, start=1):
@@ -128,6 +169,7 @@ def main(argv: list[str] | None = None) -> int:
         description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument("--count", type=int, default=DEFAULT_LEGITIMATE_SAMPLE_COUNT)
+    parser.add_argument("--lookalike-count", type=int, default=DEFAULT_LEGITIMATE_LOOKALIKE_COUNT)
     parser.add_argument("--strata", type=int, default=DEFAULT_STRATA_COUNT)
     parser.add_argument("--popular-file", type=Path, required=True)
     parser.add_argument("--rank-min", type=int, default=DEFAULT_LEGITIMATE_RANK_MIN)
@@ -152,6 +194,7 @@ def main(argv: list[str] | None = None) -> int:
     labels = build_legitimate_labels(
         index,
         count=args.count,
+        lookalike_count=args.lookalike_count,
         strata=args.strata,
         rank_min=args.rank_min,
         rank_max=args.rank_max,

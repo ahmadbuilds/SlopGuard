@@ -189,6 +189,18 @@ def collect_pull_requests(
         "record_type": "collection_summary",
         "repositories": sorted(repositories, key=lambda row: str(row["repo"])),
         "failed_repositories": sorted(failed_repositories, key=lambda row: str(row["repo"])),
+        "selection_parameters": {
+            "repositories": [
+                {"url": item["url"], "default_branch": item["default_branch"]} for item in repos
+            ],
+            "per_repo": per_repo,
+            "cutoff_date": cutoff.isoformat(),
+            "max_commits_to_inspect": MAX_COMMITS_TO_INSPECT,
+            "rule": (
+                "most recent first-parent commits on the default branch before the cutoff "
+                "whose diff yields at least one dependency candidate"
+            ),
+        },
     }
     write_jsonl(prs_path, (summary_row, *scans))
     write_recording(recording_client.results.values(), registry_path, recorded_at=recorded_at)

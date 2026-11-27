@@ -69,6 +69,7 @@ def test_legitimate_builder_stratifies_and_appends_curated_rows() -> None:
     labels = build_legitimate_labels(
         index,
         count=4,
+        lookalike_count=0,
         strata=2,
         rank_min=1,
         rank_max=8,
@@ -115,6 +116,8 @@ def test_legitimate_cli_uses_out_of_comparison_rank_window_and_records_hash(
                 "8",
                 "--count",
                 "4",
+                "--lookalike-count",
+                "0",
                 "--strata",
                 "2",
                 "--seed",
@@ -146,6 +149,52 @@ def test_hallucinated_builder_keeps_model_provenance_and_seed() -> None:
     assert "date=2026-01-01" in labels[0].source
     assert "prompt=fixture prompt" in labels[0].source
     assert "sample_count=1" in labels[0].source and "seed=3" in labels[0].source
+
+
+def test_legitimate_lookalike_stratum_is_seeded_disjoint_and_records_match() -> None:
+    index = PopularPackageIndex.from_packages(
+        [
+            {"name": name, "rank": rank}
+            for rank, name in enumerate(("fixture-one", "reqeusts", "requestx", "otherthing"), 1)
+        ]
+    )
+    comparison = PopularPackageIndex.from_packages([{"name": "requests", "rank": 1}])
+
+    kwargs = {
+        "count": 1,
+        "lookalike_count": 1,
+        "strata": 1,
+        "rank_min": 1,
+        "rank_max": 4,
+        "seed": 41,
+        "popular_sha256": "fixture-digest",
+        "comparison_index": comparison,
+    }
+    first = build_legitimate_labels(index, **kwargs)
+    second = build_legitimate_labels(index, **kwargs)
+    strata = [row for row in first if row.category.startswith("rank-stratum-")]
+    lookalikes = [row for row in first if row.category == "lookalike-legitimate"]
+    assert first == second
+    assert len(strata) == len(lookalikes) == 1
+    assert strata[0].name != lookalikes[0].name
+    assert "requests" in lookalikes[0].rationale and "rank 1" in lookalikes[0].rationale
+    assert "popular_file_sha256=fixture-digest" in lookalikes[0].source
+    assert "rank_range=1-4" in lookalikes[0].source
+    assert "seed=41" in lookalikes[0].source and "count=1" in lookalikes[0].source
+
+
+def test_legitimate_lookalike_stratum_fails_when_short() -> None:
+    index = PopularPackageIndex.from_packages([{"name": "ordinary-package", "rank": 1}])
+    comparison = PopularPackageIndex.from_packages([{"name": "requests", "rank": 1}])
+    with pytest.raises(ValueError, match="only 0 candidates exist"):
+        build_legitimate_labels(
+            index,
+            count=0,
+            lookalike_count=1,
+            rank_min=1,
+            rank_max=1,
+            comparison_index=comparison,
+        )
 
 
 def test_hallucinated_builder_merges_shared_names_with_sorted_models(tmp_path: Path) -> None:

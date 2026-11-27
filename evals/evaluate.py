@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import re
+import subprocess
 import sys
 import time
 import unicodedata
@@ -24,6 +25,7 @@ from slopguard.scan import score_candidate
 from slopguard.similarity import PopularPackageIndex
 
 from .constants import (
+    AUTOMATED_LABEL_REVIEWER,
     DEFAULT_ATTACK_TIME_DAYS,
     DEFAULT_ATTACK_TIME_RELEASES,
     DEFAULT_CONFIG_NAMES,
@@ -34,6 +36,7 @@ from .constants import (
     DEFAULT_REGISTRY_PATH,
     DEFAULT_REPOSITORIES_PATH,
     DEFAULT_RESULTS_PATH,
+    GIT_COMMAND_TIMEOUT_SECONDS,
     HASH_CHUNK_BYTES,
     MAX_REPORT_FIELD_CHARACTERS,
 )
@@ -56,6 +59,7 @@ class EvaluationConfig:
     name: str
     value: SlopGuardConfig
     sha256: str
+    config_file: str
 
 
 def _sha256_file(path: Path) -> str:
@@ -77,7 +81,11 @@ def load_evaluation_configs(paths: tuple[Path, ...] | None = None) -> tuple[Eval
     if paths is None:
         defaults = SlopGuardConfig()
         block_path = DEFAULT_CONFIG_PATHS[1]
-        configs = [EvaluationConfig(DEFAULT_CONFIG_NAMES[0], defaults, _sha256_defaults(defaults))]
+        configs = [
+            EvaluationConfig(
+                DEFAULT_CONFIG_NAMES[0], defaults, _sha256_defaults(defaults), "package defaults"
+            )
+        ]
         configs.append(_load_file_config(block_path, DEFAULT_CONFIG_NAMES[1]))
     else:
         configs = [_load_file_config(path, path.stem) for path in paths]
@@ -93,7 +101,7 @@ def load_evaluation_configs(paths: tuple[Path, ...] | None = None) -> tuple[Eval
 def _load_file_config(path: Path, name: str) -> EvaluationConfig:
     raw = path.read_bytes()
     config = parse_config(raw.decode("utf-8"), source=str(path), kind="slopguard")
-    return EvaluationConfig(name, config, hashlib.sha256(raw).hexdigest())
+    return EvaluationConfig(name, config, hashlib.sha256(raw).hexdigest(), path.name)
 
 
 def evaluate_labels(
@@ -216,6 +224,44 @@ def _new_llm_counts() -> dict[str, int]:
         "flagged_not_found_warn_or_block_count": 0,
         "flagged_not_found_block_count": 0,
     }
+
+
+def _verification_coverage(labels: tuple[Label, ...]) -> dict[str, object]:
+    classes: dict[str, dict[str, int]] = {}
+    failures: list[dict[str, str]] = []
+    for label in labels:
+        is_verified = label.reviewed_by == AUTOMATED_LABEL_REVIEWER
+        if label.label == "borderline" and is_verified and ":" in label.category:
+            class_name = label.category.split(":", maxsplit=1)[0]
+        elif label.label == "borderline" or label.expected == "exclude":
+            continue
+        else:
+            class_name = label.label
+        stats = classes.setdefault(class_name, {"verified": 0, "total": 0, "failed": 0})
+        stats["total"] += 1
+        marker = "verification failed:"
+        if is_verified and marker in label.rationale:
+            stats["failed"] += 1
+            failures.append(
+                {
+                    "class": class_name,
+                    "name": label.name,
+                    "reason": label.rationale.split(marker, maxsplit=1)[1].strip(),
+                }
+            )
+        elif is_verified:
+            stats["verified"] += 1
+    return {
+        "verified": sum(item["verified"] for item in classes.values()),
+        "total": sum(item["total"] for item in classes.values()),
+        "failed": len(failures),
+        "by_class": dict(sorted(classes.items())),
+        "failed_rows": sorted(failures, key=lambda item: (item["class"], item["name"])),
+    }
+
+
+def _verification_coverage_sentence(value: dict[str, object]) -> str:
+    return f"Verified {value['verified']}/{value['total']} labels; verification failures: {value['failed']}."
 
 
 def evaluate_attack_time(
@@ -396,8 +442,18 @@ def evaluate_real_prs(
             )
             decision = result["decision"]
             decisions.append(decision)
+            contributions = result.get("score_contributions", [])
+            top_contribution = max(
+                (item for item in contributions if isinstance(item, dict)),
+                key=lambda item: float(item.get("points", 0)),
+                default={},
+            )
             candidate_decisions.append(
-                {"name": str(result["requested_name"]), "decision": decision}
+                {
+                    "name": str(result["requested_name"]),
+                    "decision": decision,
+                    "reason": str(top_contribution.get("summary", "No scoring contribution")),
+                }
             )
             if decision in {"warn", "block"}:
                 locations = result.get("source_locations") or [{"file": "", "line": None}]
@@ -447,6 +503,7 @@ def evaluate_real_prs(
         "block_false_positive_rate": _rate(block_prs, pr_count),
         "repositories": collection_summary.get("repositories", []),
         "failed_repositories": collection_summary.get("failed_repositories", []),
+        "selection_parameters": collection_summary.get("selection_parameters"),
         "pull_requests": pr_rows,
         "flagged_candidates": sorted(
             flagged,
@@ -473,11 +530,12 @@ def _write_evaluation(
     labels_path: Path,
     registry_path: Path,
     recorded_at: str,
-    git_commit: str | None,
     runtime_seconds: float,
     attack_time_predictions: tuple[dict[str, object], ...],
     attack_time_metrics: dict[str, object],
     real_pr_metrics: dict[str, object] | None,
+    real_prs_path: Path | None,
+    real_prs_registry_path: Path | None,
 ) -> None:
     config_dir = output_dir / _safe_config_name(config.name)
     config_dir.mkdir(parents=True, exist_ok=True)
@@ -485,7 +543,6 @@ def _write_evaluation(
     write_jsonl(config_dir / "attack_time_predictions.jsonl", attack_time_predictions)
     result = {
         "tool_version": __version__,
-        "git_commit": git_commit,
         "sha256": {
             "labels": _sha256_file(labels_path),
             "registry": _sha256_file(registry_path),
@@ -497,11 +554,43 @@ def _write_evaluation(
         "real_prs": real_pr_metrics,
     }
     _write_json(config_dir / "metrics.json", result)
+    provenance: dict[str, object] = {
+        "tool_version": __version__,
+        "recorded_at": recorded_at,
+        "config_file": config.config_file,
+        "config_sha256": config.sha256,
+        "labels_sha256": _sha256_file(labels_path),
+        "registry_sha256": _sha256_file(registry_path),
+    }
+    if real_pr_metrics is not None:
+        assert real_prs_path is not None and real_prs_registry_path is not None
+        provenance["real_prs_sha256"] = _sha256_file(real_prs_path)
+        provenance["real_prs_registry_sha256"] = _sha256_file(real_prs_registry_path)
     _write_text(
         config_dir / "report.md",
-        _render_report(config, metrics, attack_time_metrics, real_pr_metrics),
+        _render_report(config, metrics, attack_time_metrics, real_pr_metrics, provenance),
     )
-    _write_json(config_dir / "run_info.json", {"runtime_seconds": round(runtime_seconds, 3)})
+    _write_json(
+        config_dir / "run_info.json",
+        {"git_commit": _current_git_commit(), "runtime_seconds": round(runtime_seconds, 3)},
+    )
+
+
+def _current_git_commit() -> str | None:
+    """Read this checkout's commit when available without failing evaluation."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=GIT_COMMAND_TIMEOUT_SECONDS,
+            shell=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    value = result.stdout.strip()
+    return value if re.fullmatch(r"[0-9a-fA-F]{40,64}", value) else None
 
 
 def _safe_config_name(value: str) -> str:
@@ -526,6 +615,7 @@ def _render_report(
     metrics: dict[str, object],
     attack_time_metrics: dict[str, object],
     real_pr_metrics: dict[str, object] | None,
+    provenance: dict[str, object],
 ) -> str:
     modes = (
         ("Flagged = warn or block", metrics["flagged_warn_or_block"]),
@@ -536,11 +626,54 @@ def _render_report(
         "",
         f"Included labels: {metrics['included_count']}; excluded labels: {metrics['excluded_count']}",
         "",
+        "## Run provenance",
+        "",
+        f"Tool version: {_markdown_text(provenance['tool_version'])}; recording date: "
+        f"{_markdown_text(provenance['recorded_at'])}; config: "
+        f"{_markdown_text(provenance['config_file'])} (SHA256 "
+        f"{provenance['config_sha256']}).",
+        f"Labels SHA256: {provenance['labels_sha256']}; registry recording SHA256: "
+        f"{provenance['registry_sha256']}.",
+        (
+            f"Real PR file SHA256: {provenance['real_prs_sha256']}; real PR registry SHA256: "
+            f"{provenance['real_prs_registry_sha256']}."
+            if "real_prs_sha256" in provenance
+            else "Real PR recordings were not used."
+        ),
+        "Git commit and runtime are in run_info.json because they vary between runs.",
+        "",
+        "## Verification coverage",
+        "",
+        _verification_coverage_sentence(cast(dict[str, object], metrics["verification_coverage"])),
+        "Labels are verified automatically against their primary sources (OSV records, the seeded generators, the popularity snapshot and recorded model outputs); they were not individually reviewed by a person.",
+        "",
         "## Metrics",
         "",
         "| Threshold | TP | FP | TN | FN | Precision | Recall | FPR | F1 |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
+    coverage = cast(dict[str, object], metrics["verification_coverage"])
+    coverage_lines = [
+        "",
+        "| Class | Verified | Total | Failed |",
+        "| --- | ---: | ---: | ---: |",
+    ]
+    by_class = cast(dict[str, dict[str, int]], coverage["by_class"])
+    for class_name, counts in sorted(by_class.items()):
+        coverage_lines.append(
+            f"| {_markdown_text(class_name)} | "
+            f"{counts['verified']} | {counts['total']} | {counts['failed']} |"
+        )
+    failed_rows = cast(list[dict[str, str]], coverage["failed_rows"])
+    if failed_rows:
+        coverage_lines.extend(("", "Verification failures:"))
+        coverage_lines.extend(
+            f"- {_markdown_text(row['class'])}, {_markdown_text(row['name'])}: "
+            f"{_markdown_text(row['reason'])}"
+            for row in failed_rows
+        )
+    coverage_index = lines.index("## Verification coverage") + 3
+    lines[coverage_index:coverage_index] = coverage_lines
     for title, raw_metrics in modes:
         mode = cast(dict[str, object], raw_metrics)
         confusion = cast(dict[str, int], mode["confusion"])
@@ -660,11 +793,30 @@ def _render_report(
             f"{_format_metric(mode['recall'])} | {_format_metric(mode['false_positive_rate'])} |"
         )
     if real_pr_metrics is not None:
+        selection = real_pr_metrics.get("selection_parameters")
+        if isinstance(selection, dict):
+            repositories = cast(list[dict[str, object]], selection.get("repositories", []))
+            repository_values = ", ".join(
+                f"{item.get('url', '')} ({item.get('default_branch', '')})" for item in repositories
+            )
+            lines.extend(
+                (
+                    "",
+                    "## Historical pull request sample",
+                    "",
+                    f"Selection rule: {_markdown_text(selection.get('rule', ''))}; "
+                    f"repositories/default branches: {_markdown_text(repository_values)}; "
+                    f"per_repo={_markdown_text(selection.get('per_repo', ''))}; "
+                    f"cutoff_date={_markdown_text(selection.get('cutoff_date', ''))}; "
+                    f"MAX_COMMITS_TO_INSPECT={_markdown_text(selection.get('max_commits_to_inspect', ''))}.",
+                )
+            )
+        else:
+            lines.extend(
+                ("", "## Historical pull request sample", "", "Selection parameters not recorded.")
+            )
         lines.extend(
             (
-                "",
-                "## Historical pull request sample",
-                "",
                 f"Candidate-level FPR (flagged new dependencies / all new dependencies): "
                 f"{real_pr_metrics['warn_or_block_candidate_count']}/"
                 f"{real_pr_metrics['candidate_count']} = "
@@ -693,8 +845,8 @@ def _render_report(
                 "",
                 "### Pull requests and candidates",
                 "",
-                "| Repository | Base..head | Subject | Candidate names and decisions |",
-                "| --- | --- | --- | --- |",
+                "| Repository | Base..head | Subject | Candidate names and decisions | Reason |",
+                "| --- | --- | --- | --- | --- |",
             )
         )
         for pr in cast(list[dict[str, object]], real_pr_metrics["pull_requests"]):
@@ -703,10 +855,19 @@ def _render_report(
                 "; ".join(f"{item['name']} ({item['decision']})" for item in candidates)
                 or "(no candidates)"
             )
+            reason_text = (
+                "; ".join(
+                    f"{item['name']}: {item['reason']}"
+                    for item in candidates
+                    if item["decision"] in {"warn", "block"}
+                )
+                or "—"
+            )
             lines.append(
                 f"| {_markdown_text(pr['repo'])} | "
                 f"{_markdown_text(pr['base'])}..{_markdown_text(pr['head'])} | "
-                f"{_markdown_text(pr['subject'])} | {_markdown_text(candidate_text)} |"
+                f"{_markdown_text(pr['subject'])} | {_markdown_text(candidate_text)} | "
+                f"{_markdown_text(reason_text)} |"
             )
         failures = cast(list[dict[str, object]], real_pr_metrics["failed_repositories"])
         if failures:
@@ -752,7 +913,6 @@ def run_evaluation(
     registry_path: Path = DEFAULT_REGISTRY_PATH,
     config_paths: tuple[Path, ...] | None = None,
     output_dir: Path = DEFAULT_RESULTS_PATH,
-    git_commit: str | None = None,
     real_prs_path: Path | None = None,
     real_prs_registry_path: Path = DEFAULT_REAL_PRS_REGISTRY_PATH,
     attack_time_days: int = DEFAULT_ATTACK_TIME_DAYS,
@@ -783,6 +943,7 @@ def run_evaluation(
             index=index,
             recorded_at=recorded_at,
         )
+        metrics["verification_coverage"] = _verification_coverage(labels)
         excluded_names = frozenset(
             canonicalize_name(str(row["name"]), validate=True)
             for row in cast(list[dict[str, str]], metrics["excluded_rows"])
@@ -819,11 +980,12 @@ def run_evaluation(
             labels_path=labels_path,
             registry_path=registry_path,
             recorded_at=str(recorded_at_value),
-            git_commit=git_commit,
             runtime_seconds=time.monotonic() - started,
             attack_time_predictions=attack_predictions,
             attack_time_metrics=attack_metrics,
             real_pr_metrics=real_pr_metrics,
+            real_prs_path=real_prs_path,
+            real_prs_registry_path=(real_prs_registry_path if real_pr_data is not None else None),
         )
 
 
@@ -835,7 +997,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY_PATH)
     parser.add_argument("--config", type=Path, action="append")
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_RESULTS_PATH)
-    parser.add_argument("--git-commit")
     parser.add_argument("--real-prs", type=Path, default=None)
     parser.add_argument("--real-prs-registry", type=Path, default=DEFAULT_REAL_PRS_REGISTRY_PATH)
     parser.add_argument("--attack-time-days", type=int, default=DEFAULT_ATTACK_TIME_DAYS)
@@ -874,7 +1035,6 @@ def main(argv: list[str] | None = None) -> int:
         registry_path=args.registry,
         config_paths=tuple(args.config) if args.config else None,
         output_dir=args.out_dir,
-        git_commit=args.git_commit,
         real_prs_path=args.real_prs,
         real_prs_registry_path=args.real_prs_registry,
         attack_time_days=args.attack_time_days,
