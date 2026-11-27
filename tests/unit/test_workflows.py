@@ -64,6 +64,17 @@ def test_slopguard_workflows_always_report_and_fetch_full_pr_history() -> None:
         assert "ref" not in checkout["with"]
 
 
+def test_slopguard_workflows_are_fork_safe_and_read_only() -> None:
+    for path in (ROOT / ".github/workflows/slopguard.yml", ROOT / "examples/workflow.yml"):
+        workflow = _load_yaml(path)
+        triggers = workflow["on"]
+
+        assert set(triggers) == {"pull_request"}
+        assert workflow["permissions"] == {"contents": "read"}
+        assert "secrets" not in str(workflow).lower()
+        assert "pull_request_target" not in str(workflow)
+
+
 def test_action_ignores_uv_configuration() -> None:
     action = _load_yaml(ACTION)
     scan_step = next(item for item in _walk(action) if item.get("id") == "scan")
