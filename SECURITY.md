@@ -51,9 +51,10 @@ or secrets to fork workflows disabled. See [GitHub's fork workflow policy](https
 - The popularity detector uses a checked-in top-5,000 package snapshot that can become stale. It
   can produce false positives and false negatives and does not detect homoglyph or combosquatting
   attacks.
-- Repository-wide local-module recognition covers root-level modules and `src/` and `lib/` package
-  roots. Test helper modules are considered local only to importers in the same test directory, so
-  a helper such as `tests/requests.py` cannot mask an application import. Projects with custom
+- Repository-wide local-module recognition treats root-level modules and modules under `src/` and
+  `lib/` as global import roots. Modules in any directory are also local to importers in that same
+  directory, so helpers such as `scripts/helpers.py` stay local to `scripts/` while
+  `src/unrelated/requests.py` cannot mask an application import. Projects with custom
   runtime import paths can receive a false positive until those roots are explicitly supported;
   SlopGuard errs toward reporting the candidate instead of suppressing it as local.
 - Timeouts, rate limits, connection errors and malformed responses are unknown. They are never

@@ -225,7 +225,9 @@ def local_modules_from_paths(paths: Iterable[str], project_name: str | None = No
 
     A file stem is top-level only when it is directly under the repository root, ``src/`` or
     ``lib/``. Nested namespace-package files contribute their first import component, not their
-    leaf stem. Test modules are handled separately because their import paths are scoped to tests.
+    leaf stem. Modules outside these roots are handled separately by
+    :func:`local_modules_by_directory`, so a sibling module is local to importers in its directory
+    without making nested files global.
     """
 
     normalized_paths = tuple(PurePosixPath(value.replace("\\", "/")) for value in paths)
