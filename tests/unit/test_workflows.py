@@ -146,3 +146,33 @@ def test_action_exposes_token_only_when_comment_is_enabled() -> None:
 
     assert "GITHUB_TOKEN: ${{ inputs.comment == 'true' && inputs.github-token || '' }}" in action
     assert "GITHUB_TOKEN: ${{ inputs.github-token }}" not in action
+
+
+def test_release_job_requires_the_protected_release_environment() -> None:
+    release = _load_yaml(ROOT / ".github/workflows/release.yml")
+
+    assert release["jobs"]["release"]["environment"] == "release"
+
+
+def test_scorecard_workflow_meets_publishing_restrictions() -> None:
+    workflow = _load_yaml(ROOT / ".github/workflows/scorecard.yml")
+
+    assert workflow["permissions"] == "read-all"
+    assert "env" not in workflow and "defaults" not in workflow
+    for name, job in workflow["jobs"].items():
+        permissions = job.get("permissions", {})
+        steps = job.get("steps", [])
+        uses = [step.get("uses", "").split("@", 1)[0] for step in steps]
+        if "ossf/scorecard-action" in uses:
+            assert permissions.get("id-token") == "write"
+            assert "env" not in job and "defaults" not in job and "container" not in job
+            assert all("run" not in step for step in steps)
+            assert set(uses) <= {
+                "actions/checkout",
+                "actions/upload-artifact",
+                "github/codeql-action/upload-sarif",
+                "ossf/scorecard-action",
+                "step-security/harden-runner",
+            }
+        else:
+            assert permissions.get("id-token") != "write", f"id-token in job {name}"
