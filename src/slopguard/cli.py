@@ -10,15 +10,18 @@ import sys
 import traceback
 import unicodedata
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import IntEnum
 from importlib.metadata import PackageNotFoundError, distribution
 from pathlib import Path
 
-from .config import ConfigError
+from .config import ConfigError, OutputSettings
+from .contracts import ScanReport
 from .git import GitRepository
+from .github import MAX_COMMENT_RESPONSE_BYTES, GitHubClient
 from .registry import PyPIClient
-from .render import RenderContext, render_annotations, render_summary
+from .render import RenderContext, render_annotations, render_comment, render_summary
 from .scan import run_scan_with_config
 
 MAX_EVENT_BYTES = 1_000_000
@@ -36,6 +39,14 @@ class ExitCode(IntEnum):
 
 class _InputError(ValueError):
     """Raised for unsupported event sources or malformed CLI input."""
+
+
+@dataclass(frozen=True, slots=True)
+class _ResolvedRevisions:
+    base: str
+    head: str
+    pull_request_number: int | None = None
+    is_fork: bool = False
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -56,6 +67,17 @@ def _parser() -> argparse.ArgumentParser:
         choices=("auto", "always", "never"),
         default="auto",
         help="emit GitHub workflow annotations (auto enables them on GitHub Actions)",
+    )
+    scan.add_argument(
+        "--comment",
+        choices=("never", "auto"),
+        default="never",
+        help="opt in to updating a sticky pull-request comment",
+    )
+    scan.add_argument(
+        "--token-env",
+        default="GITHUB_TOKEN",
+        help="environment variable containing the GitHub token (never pass a token directly)",
     )
     scan.add_argument(
         "--no-fail-on-block",
@@ -91,7 +113,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _scan(args: argparse.Namespace) -> int:
-    base, head = _resolve_revisions(args.base, args.head)
+    revisions = _resolve_revisions(args.base, args.head)
     root = args.repo.resolve()
     config_path = _config_path(args.config, root)
     repository = GitRepository(root)
@@ -99,8 +121,8 @@ def _scan(args: argparse.Namespace) -> int:
     report, config = run_scan_with_config(
         repository,
         repository=os.environ.get("GITHUB_REPOSITORY") or root.name,
-        base=base,
-        head=head,
+        base=revisions.base,
+        head=revisions.head,
         client=client,
         now=datetime.now(UTC),
         config_path=config_path,
@@ -123,6 +145,10 @@ def _scan(args: argparse.Namespace) -> int:
         _append_file(summary_path, summary + "\n")
     else:
         print(summary)
+
+    if args.comment == "auto":
+        _sync_pull_request_comment(args, report, config.output, context, revisions)
+
     github_output = args.github_output or _environment_path("GITHUB_OUTPUT")
     if github_output is not None:
         _write_outputs(github_output, report, str(report_path) if report_path else "")
@@ -132,12 +158,12 @@ def _scan(args: argparse.Namespace) -> int:
     return int(ExitCode.OK)
 
 
-def _resolve_revisions(base: str | None, head: str | None) -> tuple[str, str]:
+def _resolve_revisions(base: str | None, head: str | None) -> _ResolvedRevisions:
     if bool(base) != bool(head):
         raise _InputError("--base and --head must be provided together.")
-    if base and head:
-        return base, head
     event_name = os.environ.get("GITHUB_EVENT_NAME", "")
+    if event_name != "pull_request" and base and head:
+        return _ResolvedRevisions(base, head)
     if event_name != "pull_request":
         raise _InputError(
             "SlopGuard supports pull_request events or an explicit --base/--head pair; "
@@ -164,7 +190,72 @@ def _resolve_revisions(base: str | None, head: str | None) -> tuple[str, str]:
     head_sha = head_object.get("sha") if isinstance(head_object, dict) else None
     if not isinstance(base_sha, str) or not isinstance(head_sha, str):
         raise _InputError("Pull-request event must contain base and head commit SHAs.")
-    return base_sha, head_sha
+    number = pull_request.get("number")
+    if isinstance(number, bool) or not isinstance(number, int) or number < 1:
+        number = None
+    base_repo = base_object.get("repo") if isinstance(base_object, dict) else None
+    head_repo = head_object.get("repo") if isinstance(head_object, dict) else None
+    base_name = base_repo.get("full_name") if isinstance(base_repo, dict) else None
+    head_name = head_repo.get("full_name") if isinstance(head_repo, dict) else None
+    is_fork = (
+        not isinstance(base_name, str)
+        or not base_name
+        or not isinstance(head_name, str)
+        or not head_name
+        or head_name != base_name
+    )
+    return _ResolvedRevisions(base or base_sha, head or head_sha, number, is_fork)
+
+
+def _sync_pull_request_comment(
+    args: argparse.Namespace,
+    report: ScanReport,
+    settings: OutputSettings,
+    context: RenderContext,
+    revisions: _ResolvedRevisions,
+) -> None:
+    if os.environ.get("GITHUB_EVENT_NAME") != "pull_request":
+        _comment_notice("Comment skipped: this is not a pull_request event.")
+        return
+    if revisions.is_fork:
+        _comment_notice("Comment skipped: fork pull requests are not commented on.")
+        return
+    if revisions.pull_request_number is None:
+        _comment_notice("Comment skipped: the pull-request number is unavailable.")
+        return
+    token = os.environ.get(args.token_env, "")
+    if not token.strip():
+        _comment_notice("Comment skipped: the GitHub token is unavailable.")
+        return
+    try:
+        api_url = os.environ.get("GITHUB_API_URL", "")
+        client = GitHubClient(
+            api_url,
+            os.environ.get("GITHUB_REPOSITORY", ""),
+            token,
+            timeout_seconds=settings.comment_timeout_seconds,
+            max_response_bytes=MAX_COMMENT_RESPONSE_BYTES,
+        )
+        body = render_comment(report, context=context, settings=settings)
+        client.upsert_pull_request_comment(
+            revisions.pull_request_number,
+            body,
+            create_if_missing=report["decision"] != "pass",
+            max_pages=settings.max_comment_pages,
+        )
+    except Exception as error:
+        message = str(error).replace(token, "[redacted]") if token else str(error)
+        print(
+            f"SlopGuard PR comment warning: {_safe_terminal_text(message)}",
+            file=sys.stderr,
+        )
+
+
+def _comment_notice(message: str) -> None:
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        print(f"::notice::{message}")
+    else:
+        print(f"SlopGuard {message}", file=sys.stderr)
 
 
 def _config_path(value: str | None, root: Path) -> str | None:

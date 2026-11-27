@@ -6,7 +6,10 @@ import json
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from slopguard.cli import ExitCode, main
+from slopguard.github import GitHubClientError
 from slopguard.registry import RegistryLookupResult
 
 
@@ -208,3 +211,177 @@ def test_cli_requires_base_and_head_together(short_tmp_path: Path, capsys) -> No
 
     assert exit_code == ExitCode.CONFIG_ERROR
     assert "provided together" in capsys.readouterr().err
+
+
+def _repository_with_clean_change(root: Path) -> tuple[str, str]:
+    root.mkdir()
+    for arguments in (
+        ("init", "-b", "main"),
+        ("config", "user.name", "SlopGuard tests"),
+        ("config", "user.email", "tests@example.invalid"),
+    ):
+        subprocess.run(["git", *arguments], cwd=root, check=True, capture_output=True, text=True)
+    readme = root / "README.md"
+    readme.write_text("base\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-m", "base"], cwd=root, check=True, capture_output=True)
+    base = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=root, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    readme.write_text("head\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "commit", "-am", "documentation change"], cwd=root, check=True, capture_output=True
+    )
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=root, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    return base, head
+
+
+def _event_file(
+    path: Path, base: str, head: str, *, head_repository: str | None = "acme/project"
+) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "pull_request": {
+                    "number": 23,
+                    "base": {"sha": base, "repo": {"full_name": "acme/project"}},
+                    "head": {
+                        "sha": head,
+                        "repo": None if head_repository is None else {"full_name": head_repository},
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_auto_comment_updates_clean_scan_without_creating_a_comment(
+    short_tmp_path: Path, monkeypatch, capsys
+) -> None:
+    root = short_tmp_path / "clean-repo"
+    base, head = _repository_with_clean_change(root)
+    event_path = short_tmp_path / "event.json"
+    _event_file(event_path, base, head)
+    calls: list[tuple[int, str, bool, int]] = []
+    client_tokens: list[str] = []
+
+    class RecordingGitHubClient:
+        def __init__(self, _api_url, _repository, token, **_kwargs) -> None:
+            client_tokens.append(token)
+
+        def upsert_pull_request_comment(self, number, body, *, create_if_missing, max_pages):
+            calls.append((number, body, create_if_missing, max_pages))
+
+    monkeypatch.setattr("slopguard.cli.GitHubClient", RecordingGitHubClient)
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
+    monkeypatch.setenv("GITHUB_REPOSITORY", "acme/project")
+    monkeypatch.setenv("GITHUB_API_URL", "https://api.github.invalid")
+    monkeypatch.setenv("SLOP_TEST_TOKEN", "fixture-secret-token")
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+
+    exit_code = main(
+        ["scan", "--repo", str(root), "--comment", "auto", "--token-env", "SLOP_TEST_TOKEN"]
+    )
+
+    assert exit_code == ExitCode.OK
+    assert len(calls) == 1
+    number, body, create_if_missing, max_pages = calls[0]
+    assert number == 23
+    assert body.startswith("<!-- slopguard:comment -->")
+    assert create_if_missing is False
+    assert max_pages == 10
+    assert client_tokens == ["fixture-secret-token"]
+    assert "# SlopGuard: PASS" in capsys.readouterr().out
+
+
+def test_auto_comment_skips_when_explicit_revisions_are_not_a_pr_event(
+    short_tmp_path: Path, monkeypatch, capsys
+) -> None:
+    root = short_tmp_path / "manual-scan"
+    base, head = _repository_with_clean_change(root)
+
+    def should_not_create_client(*_args, **_kwargs):
+        raise AssertionError("comment client must be skipped")
+
+    monkeypatch.setattr("slopguard.cli.GitHubClient", should_not_create_client)
+    monkeypatch.setenv("GITHUB_TOKEN", "fixture-secret-token")
+    monkeypatch.delenv("GITHUB_EVENT_NAME", raising=False)
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+
+    exit_code = main(
+        ["scan", "--repo", str(root), "--base", base, "--head", head, "--comment", "auto"]
+    )
+
+    assert exit_code == ExitCode.OK
+    assert "not a pull_request event" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("head_repository", "token", "notice"),
+    [
+        ("fork/project", "fixture-secret-token", "fork pull requests"),
+        ("acme/project", "", "token is unavailable"),
+        (None, "fixture-secret-token", "fork pull requests"),
+    ],
+)
+def test_auto_comment_skips_forks_and_missing_tokens(
+    short_tmp_path: Path, monkeypatch, capsys, head_repository: str | None, token: str, notice: str
+) -> None:
+    root = short_tmp_path / "skip-repo"
+    base, head = _repository_with_clean_change(root)
+    event_path = short_tmp_path / "event.json"
+    _event_file(event_path, base, head, head_repository=head_repository)
+
+    def should_not_create_client(*_args, **_kwargs):
+        raise AssertionError("comment client must be skipped")
+
+    monkeypatch.setattr("slopguard.cli.GitHubClient", should_not_create_client)
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
+    monkeypatch.setenv("GITHUB_REPOSITORY", "acme/project")
+    monkeypatch.setenv("GITHUB_TOKEN", token)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+
+    exit_code = main(["scan", "--repo", str(root), "--comment", "auto"])
+
+    assert exit_code == ExitCode.OK
+    assert notice in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("failure", ["HTTP 403", "request timed out"])
+def test_comment_failure_warns_without_changing_scan_exit_code(
+    short_tmp_path: Path, monkeypatch, capsys, failure: str
+) -> None:
+    root = short_tmp_path / "comment-failure"
+    base, head = _repository_with_lookalike(root)
+    event_path = short_tmp_path / "event.json"
+    _event_file(event_path, base, head)
+
+    class BrokenGitHubClient:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        def upsert_pull_request_comment(self, *_args, **_kwargs):
+            raise GitHubClientError(f"GitHub API returned {failure} for fixture-secret-token")
+
+    monkeypatch.setattr("slopguard.cli.PyPIClient", NotFoundClient)
+    monkeypatch.setattr("slopguard.cli.GitHubClient", BrokenGitHubClient)
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
+    monkeypatch.setenv("GITHUB_REPOSITORY", "acme/project")
+    monkeypatch.setenv("GITHUB_API_URL", "https://api.github.invalid")
+    monkeypatch.setenv("GITHUB_TOKEN", "fixture-secret-token")
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+
+    exit_code = main(["scan", "--repo", str(root), "--comment", "auto", "--no-fail-on-block"])
+
+    captured = capsys.readouterr()
+    assert exit_code == ExitCode.OK
+    assert "PR comment warning" in captured.err
+    assert "fixture-secret-token" not in captured.out + captured.err
