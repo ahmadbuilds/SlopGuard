@@ -79,14 +79,21 @@ available. Exit codes are 0 for pass/warn, 1 for a blocking decision when `fail-
 2 for unsupported events or invalid configuration, and 3 for internal errors. `--no-fail-on-block`
 provides the same behavior as setting `fail-on-block` to false for direct CLI use.
 
-The workflow requires only `contents: read`; it does not need write permissions or repository
-secrets. Network access is limited to anonymous HTTPS requests to `pypi.org`. GitHub is contacted
-only when SlopGuard must use its bounded shallow-fetch fallback; on private repositories, that
-fallback requires read credentials. With the full-history checkout shown above, no fallback fetch
-is needed. Fork pull requests work with the read-only token. Automated PR comments are planned for
-SG-07. Reruns are deterministic for the same base and head commits except for live PyPI state, which
-can change between runs. After adding the workflow, mark the `SlopGuard` job as a required status
-check in branch protection or the repository's ruleset.
+The workflow requires only `contents: read` by default and does not need repository secrets.
+With comments off, SlopGuard makes anonymous HTTPS requests to `pypi.org`; GitHub is contacted only
+for the bounded shallow-fetch fallback. On private repositories, that fallback requires read
+credentials. With the full-history checkout shown above, no fallback fetch is needed. Fork pull
+requests work with the read-only token. Reruns are deterministic for the same base and head commits
+except for live PyPI state, which can change between runs. After adding the workflow, mark the
+`SlopGuard` job as a required status check in branch protection or the repository's ruleset.
+
+### PR comment (optional)
+
+Set `comment: "true"` on the action and grant `pull-requests: write` alongside `contents: read`.
+When enabled, SlopGuard also calls the GitHub API configured by the runner.
+SlopGuard creates one marked sticky comment for findings and updates it on later runs; a clean scan
+only updates an existing comment to report no findings. Fork pull requests are always skipped, even
+when a token is present. The default is off, and the token is passed through the action environment.
 
 ## Reading the results
 

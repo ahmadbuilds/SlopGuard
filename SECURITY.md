@@ -34,8 +34,9 @@ pull-request titles and bodies are not uploaded by SlopGuard.
 Registry metadata is parsed locally and included in the local JSON report as bounded hints. The
 GitHub Action writes its report and summary to the paths configured by the workflow. With the
 documented full-history checkout, SlopGuard needs no GitHub fetch; its bounded fallback fetches
-missing commit objects from the checkout's configured origin. No automated PR comment or write
-operation is performed.
+missing commit objects from the checkout's configured origin. An optional sticky PR comment is
+disabled by default; enabling it requires `pull-requests: write`. The Action skips comments on fork
+pull requests regardless of token availability.
 
 Fork pull requests normally receive a read-only `GITHUB_TOKEN` and no repository secrets, but
 repository-level Actions settings can override fork behavior. Keep settings that send write tokens

@@ -94,9 +94,10 @@ Configuration is loaded in this order: explicit path, repository `slopguard.toml
 text without file access. A PR scan reads policy from the target base SHA, not the proposed head
 configuration, so a PR cannot loosen the policy used to evaluate itself.
 
-The `[output]` table bounds summary findings, unverified names, field lengths, and annotation
-counts. These settings are validated with the rest of the base-branch configuration. GitHub's 1 MiB
-per-step job-summary ceiling is a fixed platform limit and cannot be raised through configuration.
+The `[output]` table bounds summary findings, unverified names, field lengths, annotation counts,
+comment request timeouts, and comment pagination. These settings are validated with the rest of the
+base-branch configuration. GitHub's 1 MiB per-step job-summary ceiling and 65,536-character
+issue-comment ceiling are fixed platform limits and cannot be raised through configuration.
 
 ### Compatibility
 
@@ -342,13 +343,16 @@ argument arrays. Its workflow files reference no repository secrets. GitHub's re
 fork settings are a separate trust boundary: an administrator must confirm that fork workflows do
 not receive write tokens or secrets. These settings were not readable during the VOI-118 review.
 
-The only scanner network destination is the public PyPI JSON host over verified HTTPS. Requests
-contain a normalized package name and a versioned repository User-Agent; source files, paths,
-pull-request text, and registry credentials are not sent. Active allow-list names are not queried or
-charged to the lookup budget. Publisher-controlled registry metadata remains untrusted and is
-bounded, parsed locally, and used only as review evidence. Timeouts, rate limits, malformed data,
-and exhausted budgets remain unknown, never a claim that a package is absent. Summary text escapes
-untrusted Markdown and output files use bounded, collision-resistant delimiters.
+Registry lookups use only the public PyPI JSON host over verified HTTPS. Requests contain a
+normalized package name and a versioned repository User-Agent; source files, paths, pull-request
+text, and registry credentials are not sent. Active allow-list names are not queried or charged to
+the lookup budget. Publisher-controlled registry metadata remains untrusted and is bounded, parsed
+locally, and used only as review evidence. Timeouts, rate limits, malformed data, and exhausted
+budgets remain unknown, never a claim that a package is absent. When the optional sticky PR comment
+is enabled, the CLI sends the rendered bounded report to the HTTPS API origin supplied by
+`GITHUB_API_URL`, authenticated by the token supplied in the configured environment variable. It
+skips fork pull requests and caps reads, request timeouts, retry delay and pagination. Summary and
+comment text escape untrusted Markdown; output files use bounded, collision-resistant delimiters.
 
 ### Reviewed findings and limits
 
@@ -362,6 +366,6 @@ SlopGuard is a dependency-name review aid, not a malware or vulnerability scanne
 resolve all dependency formats or transitive dependencies, inspect package artifacts, verify
 publisher identity or provenance, or detect every homoglyph/combosquatting attack. Old popular
 malware, compromised maintainers, dependency confusion on private indexes, and optional secret
-scanning are outside this tool's coverage. SG-07's PR annotation and comment output needs a separate
-escaping review when that feature lands. See [SECURITY.md](SECURITY.md) for the complete threat
+scanning are outside this tool's coverage. The optional PR comment requires `pull-requests: write`
+and is always skipped for fork pull requests. See [SECURITY.md](SECURITY.md) for the complete threat
 scope, limitations and private vulnerability-reporting instructions.
