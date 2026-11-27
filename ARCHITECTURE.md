@@ -16,7 +16,7 @@ published GitHub Action compose the scan as a CLI and composite action.
 
 ## Result contract
 
-Contract version `1.0.0` is defined by
+Contract version `1.1.0` is defined by
 [`src/slopguard/schemas/dependency-result.schema.json`](src/slopguard/schemas/dependency-result.schema.json).
 The package exposes the typed `DependencyResult` shape and `load_result_schema()` through
 `slopguard.contracts`. Checked-in JSON contract examples are in `tests/fixtures/contract/`.
@@ -31,7 +31,8 @@ entry in `results` references the dependency-result schema.
 
 | Field | Meaning |
 | --- | --- |
-| `contract_version` | Contract version, currently `1.0.0`. |
+| `contract_version` | Contract version, currently `1.1.0`. |
+| `policy` (scan report) | Effective base-branch mode, warning and block thresholds, and unknown-registry behavior used for this scan. |
 | `requested_name` | Exact name found in the input manifest or source. |
 | `normalized_name` | PEP 503 canonicalized name: lowercase and each run of `.`, `_`, or `-` replaced by `-`. |
 | `registry_exists` | `true` or `false` after a successful PyPI lookup; `null` if a timeout, rate limit, or other lookup failure prevents a conclusion. |
@@ -43,6 +44,7 @@ entry in `results` references the dependency-result schema.
 | `score_contributions` | Optional additive points and explanation for each of the five scoring signals. |
 | `decision` | Optional `pass`, `warn`, or `block` result from the policy stage. Missing means not evaluated. |
 | `allowlisted` | Optional boolean indicating an active allow-list entry matched the package. |
+| `allowlist` | Optional active exception reason and ISO expiry date (or `null` when it has no expiry). |
 | `risk_score` | Aggregated risk from 0 (lowest) to 100 (highest). |
 | `severity` | `info`, `low`, `medium`, `high`, or `critical`. |
 | `remediation` | Actionable explanation for a developer reviewing the finding. |
@@ -91,6 +93,10 @@ Configuration is loaded in this order: explicit path, repository `slopguard.toml
 `[tool.slopguard]` table in `pyproject.toml`, then built-in defaults. `parse_config` accepts TOML
 text without file access. A PR scan reads policy from the target base SHA, not the proposed head
 configuration, so a PR cannot loosen the policy used to evaluate itself.
+
+The `[output]` table bounds summary findings, unverified names, field lengths, and annotation
+counts. These settings are validated with the rest of the base-branch configuration. GitHub's 1 MiB
+per-step job-summary ceiling is a fixed platform limit and cannot be raised through configuration.
 
 ### Compatibility
 

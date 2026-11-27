@@ -88,6 +88,25 @@ SG-07. Reruns are deterministic for the same base and head commits except for li
 can change between runs. After adding the workflow, mark the `SlopGuard` job as a required status
 check in branch protection or the repository's ruleset.
 
+## Reading the results
+
+The job summary starts with the overall `PASS`, `WARN`, or `BLOCK` decision and package counts. Its
+policy line shows the mode, warning and block thresholds, unknown-result behavior, and configuration
+source. When a pull request changes configuration, the summary says that the base-branch policy was
+used for the scan.
+
+Unverified package metadata appears near the top so it remains visible in a long summary. Unknown
+metadata is unverified, not evidence that the package does not exist. Blocked and warned findings
+show requested and normalized names, source locations, registry state, closest look-alike, score
+signals, available release facts, and remediation. Passed dependencies are in a collapsed list;
+scan warnings and tool, workflow-run, and documentation links follow.
+
+GitHub workflow annotations highlight blocked results as errors, warnings as warnings, and
+unverified results that passed policy as notices. `--annotations auto` (the default) emits them only
+when `GITHUB_ACTIONS` is `true`; `--annotations always` and `--annotations never` force either
+behavior. The annotation limit applies independently from the summary finding limit; the summary
+reports how many findings it omitted.
+
 ## Security boundaries
 
 SlopGuard analyzes dependency declarations and Python imports from the pull request diff. It does
