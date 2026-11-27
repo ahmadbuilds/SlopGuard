@@ -1,5 +1,8 @@
 # SlopGuard
 
+[![CI](https://github.com/ahmadbuilds/SlopGuard/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ahmadbuilds/SlopGuard/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ahmadbuilds/SlopGuard/badge)](https://scorecard.dev/viewer/?uri=github.com/ahmadbuilds/SlopGuard)
+
 SlopGuard checks dependency names added to Python projects for packages that are missing from PyPI
 and names that imitate popular packages. It extracts additions from changed files and looks up
 metadata from PyPI. SlopGuard reads package metadata only; it never installs or executes packages.
