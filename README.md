@@ -90,5 +90,6 @@ check in branch protection or the repository's ruleset.
 ## More information
 
 - [Architecture and data flow](ARCHITECTURE.md)
+- [Offline evaluation tools, metrics, and data workflow](evals/README.md)
 - [Security model and vulnerability reporting](SECURITY.md)
 - [Repository rules for contributors and coding agents](AGENTS.md)

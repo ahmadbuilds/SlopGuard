@@ -198,6 +198,13 @@ scoring use the base-tip configuration and packaged popularity snapshot. Results
 are sorted deterministically. A report without a scored decision is an internal error; no findings
 produce a `pass` report with zero counts.
 
+The `evals/` subsystem is a separate, non-runtime toolset and is excluded from the wheel. It builds
+reviewable labels, records live registry responses only in explicit manual commands, and evaluates
+labels offline by replaying those recordings through the same `score_candidate` path used by scans.
+The optional historical-PR collector stores extracted candidates and a separate registry recording
+so PR-level flag rates can also be reproduced without cloning during evaluation. No evaluation
+module is imported by `slopguard`.
+
 To keep processing bounded, non-Python changed files are skipped with a warning when their combined
 base and head content exceeds 2,000 lines or 1,000,000 characters. Python files use AST comparison
 and are subject to the 1,000,000-character cap but not the line cap. The extractor stops and
