@@ -191,12 +191,15 @@ Shallow clones first fetch missing base/head commits from `origin`, then can be 
 merge base up to the target base tip's `git.fetch_depth` limit. Invalid base configuration uses the
 safe default fetch depth and is reported as a configuration error after Git history recovery.
 
-Changed supported files pass through the pure extractor. Registry lookups use at most
-`registry.max_concurrency` workers and `registry.max_lookups` requests per scan. Candidates beyond
-the budget receive a transient unknown result, which can warn but cannot block. Similarity and
-scoring use the base-tip configuration and packaged popularity snapshot. Results and warnings
-are sorted deterministically. A report without a scored decision is an internal error; no findings
-produce a `pass` report with zero counts.
+Changed supported files pass through the pure extractor. Active allow-list matches are scored and
+reported as `allowlisted: true` without sending their names to PyPI or using the lookup budget;
+their evidence names the configured exception, reason and expiry. Expired entries are not active,
+so their candidates are looked up normally and an expiry warning is reported. Other registry
+lookups use at most `registry.max_concurrency` workers and `registry.max_lookups` requests per scan.
+Candidates beyond that budget receive a transient unknown result, which can warn but cannot block.
+Similarity and scoring use the base-tip configuration and packaged popularity snapshot. Results
+and warnings are sorted deterministically. A report without a scored decision is an internal error;
+no findings produce a `pass` report with zero counts.
 
 The `evals/` subsystem is a separate, non-runtime toolset and is excluded from the wheel. It builds
 reviewable labels, records live registry responses only in explicit manual commands, and evaluates
@@ -317,8 +320,42 @@ never blocks a merge.
 
 ## Security model
 
-Dependency manifests, changed Python source, and PyPI responses are treated as untrusted data.
-SlopGuard parses them but never executes project code or retrieved packages. Registry access is
-read-only and bounded by time, retries, and response size. Tests use checked-in fixtures and
-controlled transports; they do not call PyPI. See [SECURITY.md](SECURITY.md) for the threat scope,
-limitations, and private vulnerability-reporting instructions.
+### Threat model and trust boundaries
+
+SlopGuard defends pull-request review against suspicious dependency names and unsafe or misleading
+scan results. It treats changed manifests, Python source, repository paths, configuration changes,
+and PyPI responses as untrusted data. The policy and allow-list come from the target base SHA, so a
+pull request cannot weaken the rules used to evaluate itself. Git content is read as bounded blobs;
+the scanner does not import or execute the checkout, candidate packages, archives, setup scripts,
+or project build hooks. Python is parsed with `ast`, TOML with `tomllib`, and requirements with
+`packaging`.
+
+The Action runs for `pull_request`, uses read-only `contents` permission, pins third-party Actions,
+does not persist checkout credentials, and passes inputs through environment variables and
+argument arrays. Its workflow files reference no repository secrets. GitHub's repository-level
+fork settings are a separate trust boundary: an administrator must confirm that fork workflows do
+not receive write tokens or secrets. These settings were not readable during the VOI-118 review.
+
+The only scanner network destination is the public PyPI JSON host over verified HTTPS. Requests
+contain a normalized package name and a versioned repository User-Agent; source files, paths,
+pull-request text, and registry credentials are not sent. Active allow-list names are not queried or
+charged to the lookup budget. Publisher-controlled registry metadata remains untrusted and is
+bounded, parsed locally, and used only as review evidence. Timeouts, rate limits, malformed data,
+and exhausted budgets remain unknown, never a claim that a package is absent. Summary text escapes
+untrusted Markdown and output files use bounded, collision-resistant delimiters.
+
+### Reviewed findings and limits
+
+VOI-118 resolved the nested-module false negative while preserving same-directory helper imports,
+kept unknown registry results visible even under a pass policy and summary truncation, and stopped
+active allow-list names from leaking to PyPI. The review record and regression evidence are in
+[`SECURITY_REVIEW.md`](SECURITY_REVIEW.md). Its remaining operational check is confirmation of the
+repository-level fork settings by an administrator.
+
+SlopGuard is a dependency-name review aid, not a malware or vulnerability scanner. It does not
+resolve all dependency formats or transitive dependencies, inspect package artifacts, verify
+publisher identity or provenance, or detect every homoglyph/combosquatting attack. Old popular
+malware, compromised maintainers, dependency confusion on private indexes, and optional secret
+scanning are outside this tool's coverage. SG-07's PR annotation and comment output needs a separate
+escaping review when that feature lands. See [SECURITY.md](SECURITY.md) for the complete threat
+scope, limitations and private vulnerability-reporting instructions.

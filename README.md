@@ -29,7 +29,8 @@ Configuration can live in a standalone `slopguard.toml` file or under `[tool.slo
 `pyproject.toml`. Copy [`examples/slopguard.toml`](examples/slopguard.toml) for documented defaults.
 The library defaults to `mode = "warn"`; the sample workflow will use `mode = "block"`. Scoring is
 a configurable heuristic that helps prioritize review; it is not proof that a package is malware.
-An allow-list exception passes a result while retaining its score and evidence. Unknown registry
+An active allow-list exception passes a result while retaining its score and evidence; its package
+name is not sent to PyPI. Expired entries are looked up and reported as warnings. Unknown registry
 results follow `on_unknown`, which defaults to `warn`.
 
 The configuration loader prefers an explicit path, then `slopguard.toml`, then the

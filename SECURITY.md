@@ -25,9 +25,12 @@ paths and diagnostics; GitHub outputs use random multiline delimiters.
 
 ## Data and network use
 
-For each candidate, SlopGuard sends the canonicalized package name in a request path to the public
-PyPI JSON API. The User-Agent identifies the SlopGuard version and repository. Source files,
-filenames, repository contents, pull-request titles and bodies are not uploaded by SlopGuard.
+For each candidate without an active allow-list exception, SlopGuard sends the canonicalized
+package name in a request path to the public PyPI JSON API. Active allow-listed names are not sent
+to PyPI or counted against the lookup budget; the local report records the configured exception
+reason and expiry. Expired entries are looked up normally and reported as warnings. The User-Agent
+identifies the SlopGuard version and repository. Source files, filenames, repository contents,
+pull-request titles and bodies are not uploaded by SlopGuard.
 Registry metadata is parsed locally and included in the local JSON report as bounded hints. The
 GitHub Action writes its report and summary to the paths configured by the workflow. With the
 documented full-history checkout, SlopGuard needs no GitHub fetch; its bounded fallback fetches
