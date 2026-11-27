@@ -3,6 +3,33 @@
     "days": 1,
     "metrics": {
       "by_category": {
+        "lookalike-legitimate": {
+          "count": 50,
+          "flagged_block": {
+            "confusion": {
+              "fn": 0,
+              "fp": 0,
+              "tn": 50,
+              "tp": 0
+            },
+            "f1": null,
+            "false_positive_rate": 0.0,
+            "precision": null,
+            "recall": null
+          },
+          "flagged_warn_or_block": {
+            "confusion": {
+              "fn": 0,
+              "fp": 50,
+              "tn": 0,
+              "tp": 0
+            },
+            "f1": null,
+            "false_positive_rate": 1.0,
+            "precision": 0.0,
+            "recall": null
+          }
+        },
         "malicious-package": {
           "count": 100,
           "flagged_block": {
@@ -306,7 +333,7 @@
         "confusion": {
           "fn": 276,
           "fp": 0,
-          "tn": 100,
+          "tn": 150,
           "tp": 0
         },
         "f1": null,
@@ -317,22 +344,48 @@
       "flagged_warn_or_block": {
         "confusion": {
           "fn": 0,
-          "fp": 100,
+          "fp": 150,
           "tn": 0,
           "tp": 276
         },
-        "f1": 0.8466257668711656,
+        "f1": 0.7863247863247863,
         "false_positive_rate": 1.0,
-        "precision": 0.7340425531914894,
+        "precision": 0.647887323943662,
         "recall": 1.0
       },
-      "included_count": 376
+      "included_count": 426
     },
     "releases": 1
   },
-  "git_commit": null,
   "metrics": {
     "by_category": {
+      "lookalike-legitimate": {
+        "count": 50,
+        "flagged_block": {
+          "confusion": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 50,
+            "tp": 0
+          },
+          "f1": null,
+          "false_positive_rate": 0.0,
+          "precision": null,
+          "recall": null
+        },
+        "flagged_warn_or_block": {
+          "confusion": {
+            "fn": 0,
+            "fp": 1,
+            "tn": 49,
+            "tp": 0
+          },
+          "f1": null,
+          "false_positive_rate": 0.02,
+          "precision": 0.0,
+          "recall": null
+        }
+      },
       "malicious-package": {
         "count": 100,
         "flagged_block": {
@@ -767,7 +820,7 @@
       },
       {
         "name": "phack",
-        "reason": "exists on PyPI; needs human review"
+        "reason": "label marked exclude"
       },
       {
         "name": "Pillow",
@@ -787,7 +840,7 @@
       },
       {
         "name": "pyacl",
-        "reason": "exists on PyPI; needs human review"
+        "reason": "label marked exclude"
       },
       {
         "name": "pydicom",
@@ -903,24 +956,19 @@
       },
       {
         "name": "vcrypt",
-        "reason": "exists on PyPI; needs human review"
+        "reason": "label marked exclude"
       },
       {
         "name": "ztdata",
-        "reason": "exists on PyPI; needs human review"
+        "reason": "label marked exclude"
       }
     ],
-    "exists_synthetic_review_exclusions": [
-      "phack",
-      "pyacl",
-      "vcrypt",
-      "ztdata"
-    ],
+    "exists_synthetic_review_exclusions": [],
     "flagged_block": {
       "confusion": {
         "fn": 276,
         "fp": 0,
-        "tn": 100,
+        "tn": 150,
         "tp": 0
       },
       "f1": null,
@@ -931,13 +979,13 @@
     "flagged_warn_or_block": {
       "confusion": {
         "fn": 0,
-        "fp": 0,
-        "tn": 100,
+        "fp": 1,
+        "tn": 149,
         "tp": 276
       },
-      "f1": 1.0,
-      "false_positive_rate": 0.0,
-      "precision": 1.0,
+      "f1": 0.9981916817359855,
+      "false_positive_rate": 0.006666666666666667,
+      "precision": 0.9963898916967509,
       "recall": 1.0
     },
     "hallucinated_outputs": {
@@ -968,7 +1016,56 @@
       "inconclusive_count": 0,
       "not_found_count": 0
     },
-    "included_count": 376
+    "included_count": 426,
+    "verification_coverage": {
+      "by_class": {
+        "hallucinated": {
+          "failed": 0,
+          "total": 65,
+          "verified": 65
+        },
+        "legitimate": {
+          "failed": 0,
+          "total": 150,
+          "verified": 150
+        },
+        "malicious": {
+          "failed": 0,
+          "total": 100,
+          "verified": 100
+        },
+        "typosquat_synthetic": {
+          "failed": 4,
+          "total": 180,
+          "verified": 176
+        }
+      },
+      "failed": 4,
+      "failed_rows": [
+        {
+          "class": "typosquat_synthetic",
+          "name": "phack",
+          "reason": "recording status is exists"
+        },
+        {
+          "class": "typosquat_synthetic",
+          "name": "pyacl",
+          "reason": "recording status is exists"
+        },
+        {
+          "class": "typosquat_synthetic",
+          "name": "vcrypt",
+          "reason": "recording status is exists"
+        },
+        {
+          "class": "typosquat_synthetic",
+          "name": "ztdata",
+          "reason": "recording status is exists"
+        }
+      ],
+      "total": 495,
+      "verified": 491
+    }
   },
   "real_prs": {
     "block_candidate_count": 0,
@@ -985,7 +1082,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "importlib-metadata"
+            "name": "importlib-metadata",
+            "reason": "The package has 134 release versions, above the 1-release signal limit."
           }
         ],
         "head": "027a4727a5b8f8407109c01df5e24604352bbe50",
@@ -997,7 +1095,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "pytest"
+            "name": "pytest",
+            "reason": "The package has 193 release versions, above the 1-release signal limit."
           }
         ],
         "head": "42bfda8b51f7bd253d04439aea36ff88122237fc",
@@ -1009,7 +1108,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "typing_extensions"
+            "name": "typing_extensions",
+            "reason": "The package has 52 release versions, above the 1-release signal limit."
           }
         ],
         "head": "e0c7e96b303e6f3e48818380527129fb21f453f3",
@@ -1021,7 +1121,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "typing_extensions"
+            "name": "typing_extensions",
+            "reason": "The package has 52 release versions, above the 1-release signal limit."
           }
         ],
         "head": "ea78218244cfa743c8cd06fc7808560233ac58df",
@@ -1033,11 +1134,13 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "pytest"
+            "name": "pytest",
+            "reason": "The package has 193 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "wcwidth"
+            "name": "wcwidth",
+            "reason": "The package has 50 release versions, above the 1-release signal limit."
           }
         ],
         "head": "f000c3149166cc2091b801b63b0a55e806c5d49b",
@@ -1049,7 +1152,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "anyio"
+            "name": "anyio",
+            "reason": "The package has 73 release versions, above the 1-release signal limit."
           }
         ],
         "head": "280a89a4d13b65852b065b3e1aaa53d388946a88",
@@ -1061,7 +1165,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "click"
+            "name": "click",
+            "reason": "The package has 66 release versions, above the 1-release signal limit."
           }
         ],
         "head": "2c49a151d270cc612f61c4094dbf281cbf2f63a4",
@@ -1073,7 +1178,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "zstandard"
+            "name": "zstandard",
+            "reason": "The package has 42 release versions, above the 1-release signal limit."
           }
         ],
         "head": "392dbe45f086d0877bd288c5d68abf860653b680",
@@ -1085,15 +1191,18 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "brotli"
+            "name": "brotli",
+            "reason": "The package has 11 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "brotlicffi"
+            "name": "brotlicffi",
+            "reason": "The package has 9 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "zstandard"
+            "name": "zstandard",
+            "reason": "The package has 42 release versions, above the 1-release signal limit."
           }
         ],
         "head": "8e36f2bc685dfbe43cd7503bc1c422a6ed6e05a5",
@@ -1105,7 +1214,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "pytest"
+            "name": "pytest",
+            "reason": "The package has 193 release versions, above the 1-release signal limit."
           }
         ],
         "head": "db9072f998b53ff66d50778bf5edee8e2cc8ede1",
@@ -1117,11 +1227,13 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "pydantic"
+            "name": "pydantic",
+            "reason": "The package has 212 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "pytest"
+            "name": "pytest",
+            "reason": "The package has 193 release versions, above the 1-release signal limit."
           }
         ],
         "head": "2f6d43c6ecc9a392ea0fcb14c0b063e76b448b62",
@@ -1133,11 +1245,13 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "pydantic"
+            "name": "pydantic",
+            "reason": "The package has 212 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "pytest"
+            "name": "pytest",
+            "reason": "The package has 193 release versions, above the 1-release signal limit."
           }
         ],
         "head": "86274cc0acc9fc6d608e251c874105c94634bddf",
@@ -1149,7 +1263,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "pydantic_core"
+            "name": "pydantic_core",
+            "reason": "The package has 165 release versions, above the 1-release signal limit."
           }
         ],
         "head": "91a335ce946c7a832da973f2acf69b8876594216",
@@ -1161,11 +1276,13 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "pydantic"
+            "name": "pydantic",
+            "reason": "The package has 212 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "pytest"
+            "name": "pytest",
+            "reason": "The package has 193 release versions, above the 1-release signal limit."
           }
         ],
         "head": "e42ac0a13459086f42d96eab13748303bcfa78e7",
@@ -1177,7 +1294,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "pytest"
+            "name": "pytest",
+            "reason": "The package has 193 release versions, above the 1-release signal limit."
           }
         ],
         "head": "f02ef4900bacc28942a051b95b9719c5002a7858",
@@ -1189,11 +1307,13 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "pytest"
+            "name": "pytest",
+            "reason": "The package has 193 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "sqlalchemy"
+            "name": "sqlalchemy",
+            "reason": "The package has 344 release versions, above the 1-release signal limit."
           }
         ],
         "head": "01960be28ed852c5c118c5be163c91bb72f3cd91",
@@ -1205,7 +1325,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "pydantic"
+            "name": "pydantic",
+            "reason": "The package has 212 release versions, above the 1-release signal limit."
           }
         ],
         "head": "073023d84546490bd5dce86ce94fe6e8914db7c2",
@@ -1217,15 +1338,18 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "aiosqlite"
+            "name": "aiosqlite",
+            "reason": "The package has 28 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "pytest"
+            "name": "pytest",
+            "reason": "The package has 193 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "typing_extensions"
+            "name": "typing_extensions",
+            "reason": "The package has 52 release versions, above the 1-release signal limit."
           }
         ],
         "head": "7d1eba721e5e48b8bf9877007dbe803fd07539ba",
@@ -1237,15 +1361,18 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "pymysql"
+            "name": "pymysql",
+            "reason": "The package has 48 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "sqlalchemy"
+            "name": "sqlalchemy",
+            "reason": "The package has 344 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "dirty_equals"
+            "name": "dirty_equals",
+            "reason": "The package has 19 release versions, above the 1-release signal limit."
           }
         ],
         "head": "8da92357f55f1295c4e39072263106f5122ee34d",
@@ -1257,19 +1384,23 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "pydantic"
+            "name": "pydantic",
+            "reason": "The package has 212 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "sqlalchemy"
+            "name": "sqlalchemy",
+            "reason": "The package has 344 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "alembic"
+            "name": "alembic",
+            "reason": "The package has 147 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "pytest"
+            "name": "pytest",
+            "reason": "The package has 193 release versions, above the 1-release signal limit."
           }
         ],
         "head": "cc998aaa45f9d3bb76dbe20438c3ce2d449a0c73",
@@ -1281,7 +1412,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "pytest"
+            "name": "pytest",
+            "reason": "The package has 193 release versions, above the 1-release signal limit."
           }
         ],
         "head": "333c28d79cd982990ee98eef61ec20ab1a4f38ba",
@@ -1293,7 +1425,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "typing_extensions"
+            "name": "typing_extensions",
+            "reason": "The package has 52 release versions, above the 1-release signal limit."
           }
         ],
         "head": "3cbaa76b6014be7427d1ab06b4af40f01e7c278e",
@@ -1305,7 +1438,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "typing_extensions"
+            "name": "typing_extensions",
+            "reason": "The package has 52 release versions, above the 1-release signal limit."
           }
         ],
         "head": "5e906a8afb67242dffdd91404dbf31f469054b15",
@@ -1317,7 +1451,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "pytest"
+            "name": "pytest",
+            "reason": "The package has 193 release versions, above the 1-release signal limit."
           }
         ],
         "head": "6aabf099bfdd4c1e75fe8d0e0d4241372b988ab1",
@@ -1329,7 +1464,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "typing_extensions"
+            "name": "typing_extensions",
+            "reason": "The package has 52 release versions, above the 1-release signal limit."
           }
         ],
         "head": "e1fd5946ab26aaf372009eaff1acf947140b40fb",
@@ -1341,7 +1477,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "typing_extensions"
+            "name": "typing_extensions",
+            "reason": "The package has 52 release versions, above the 1-release signal limit."
           }
         ],
         "head": "adf363679da2d9a5ddc564bb2da563c7ca083916",
@@ -1353,7 +1490,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "roman-numerals-py"
+            "name": "roman-numerals-py",
+            "reason": "The package has 6 release versions, above the 1-release signal limit."
           }
         ],
         "head": "b78b5a210bde49e7e04b62a2a4f453ca10e0048c",
@@ -1365,79 +1503,98 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "markupsafe"
+            "name": "markupsafe",
+            "reason": "The package has 36 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "ruff"
+            "name": "ruff",
+            "reason": "The package has 433 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "tox"
+            "name": "tox",
+            "reason": "The package has 345 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "tox-uv"
+            "name": "tox-uv",
+            "reason": "The package has 84 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "pallets-sphinx-themes"
+            "name": "pallets-sphinx-themes",
+            "reason": "The package has 24 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "sphinx"
+            "name": "sphinx",
+            "reason": "The package has 243 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "sphinx-tabs"
+            "name": "sphinx-tabs",
+            "reason": "The package has 37 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "sphinxcontrib-log-cabinet"
+            "name": "sphinxcontrib-log-cabinet",
+            "reason": "The package has 2 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "sphinx-autobuild"
+            "name": "sphinx-autobuild",
+            "reason": "The package has 25 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "gha-update"
+            "name": "gha-update",
+            "reason": "The package has 2 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "pre-commit"
+            "name": "pre-commit",
+            "reason": "The package has 205 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "pre-commit-uv"
+            "name": "pre-commit-uv",
+            "reason": "The package has 22 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "greenlet"
+            "name": "greenlet",
+            "reason": "The package has 69 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "pytest"
+            "name": "pytest",
+            "reason": "The package has 193 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "cryptography"
+            "name": "cryptography",
+            "reason": "The package has 160 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "mypy"
+            "name": "mypy",
+            "reason": "The package has 142 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "pyright"
+            "name": "pyright",
+            "reason": "The package has 209 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "types-contextvars"
+            "name": "types-contextvars",
+            "reason": "The package has 16 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "types-dataclasses"
+            "name": "types-dataclasses",
+            "reason": "The package has 15 release versions, above the 1-release signal limit."
           }
         ],
         "head": "bc143499cf1137a271a7cf75bdd3e16e43ede2f0",
@@ -1449,7 +1606,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "sphinx-notfound-page"
+            "name": "sphinx-notfound-page",
+            "reason": "The package has 18 release versions, above the 1-release signal limit."
           }
         ],
         "head": "bca18041b055102857a7e8a12f8694fddda9571b",
@@ -1461,27 +1619,33 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "importlib-metadata"
+            "name": "importlib-metadata",
+            "reason": "The package has 134 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "tomli"
+            "name": "tomli",
+            "reason": "The package has 32 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "zipp"
+            "name": "zipp",
+            "reason": "The package has 66 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "exceptiongroup"
+            "name": "exceptiongroup",
+            "reason": "The package has 25 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "greenlet"
+            "name": "greenlet",
+            "reason": "The package has 69 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "pytz"
+            "name": "pytz",
+            "reason": "The package has 126 release versions, above the 1-release signal limit."
           }
         ],
         "head": "eeb5f95a0f24abc5207159cc922cdda8d779f4f6",
@@ -1493,7 +1657,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "pytest"
+            "name": "pytest",
+            "reason": "The package has 193 release versions, above the 1-release signal limit."
           }
         ],
         "head": "315a796590d112d15cf74b941ca83b53bb331068",
@@ -1505,23 +1670,28 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "a"
+            "name": "a",
+            "reason": "The package has 1 release versions (at most 1)."
           },
           {
             "decision": "pass",
-            "name": "c"
+            "name": "c",
+            "reason": "The package has 7 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "d"
+            "name": "d",
+            "reason": "The package has 6 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "k"
+            "name": "k",
+            "reason": "The package has 1 release versions (at most 1)."
           },
           {
             "decision": "pass",
-            "name": "m"
+            "name": "m",
+            "reason": "The package has 0 release versions (at most 1)."
           }
         ],
         "head": "9888d14643ac414d7a24bc3e082af1c7cbe06efa",
@@ -1533,7 +1703,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "pytest"
+            "name": "pytest",
+            "reason": "The package has 193 release versions, above the 1-release signal limit."
           }
         ],
         "head": "ac1f71563aeccf73cf13ece00f231d9d6c66a514",
@@ -1545,7 +1716,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "pytest"
+            "name": "pytest",
+            "reason": "The package has 193 release versions, above the 1-release signal limit."
           }
         ],
         "head": "b7f9e86ea23d22c9d27ae964e07d1855ee91069f",
@@ -1557,7 +1729,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "click"
+            "name": "click",
+            "reason": "The package has 66 release versions, above the 1-release signal limit."
           }
         ],
         "head": "d7587ce9f52f36eb41bc505e529540fd8cbdcd3e",
@@ -1569,7 +1742,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "trustme"
+            "name": "trustme",
+            "reason": "The package has 16 release versions, above the 1-release signal limit."
           }
         ],
         "head": "4443b1a847b190010c2972a658924b98b5db6360",
@@ -1581,11 +1755,13 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "pyright"
+            "name": "pyright",
+            "reason": "The package has 209 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "typing_extensions"
+            "name": "typing_extensions",
+            "reason": "The package has 52 release versions, above the 1-release signal limit."
           }
         ],
         "head": "561e4b6889f53584c39a67f8794c53a414f68481",
@@ -1597,7 +1773,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "urllib3"
+            "name": "urllib3",
+            "reason": "The package has 105 release versions, above the 1-release signal limit."
           }
         ],
         "head": "79b74ef704dc0d804937c0d015c5e9c3b02b79bd",
@@ -1609,51 +1786,63 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "setuptools"
+            "name": "setuptools",
+            "reason": "The package has 627 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "charset_normalizer"
+            "name": "charset_normalizer",
+            "reason": "The package has 67 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "idna"
+            "name": "idna",
+            "reason": "The package has 42 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "urllib3"
+            "name": "urllib3",
+            "reason": "The package has 105 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "certifi"
+            "name": "certifi",
+            "reason": "The package has 79 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "PySocks"
+            "name": "PySocks",
+            "reason": "The package has 19 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "chardet"
+            "name": "chardet",
+            "reason": "The package has 32 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "pytest-httpbin"
+            "name": "pytest-httpbin",
+            "reason": "The package has 22 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "pytest-cov"
+            "name": "pytest-cov",
+            "reason": "The package has 54 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "pytest-mock"
+            "name": "pytest-mock",
+            "reason": "The package has 69 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "pytest-xdist"
+            "name": "pytest-xdist",
+            "reason": "The package has 71 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "pytest"
+            "name": "pytest",
+            "reason": "The package has 193 release versions, above the 1-release signal limit."
           }
         ],
         "head": "cb2c800518423e0042789ab09f8f6e719428a444",
@@ -1665,15 +1854,18 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "cryptography"
+            "name": "cryptography",
+            "reason": "The package has 160 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "PyOpenSSL"
+            "name": "PyOpenSSL",
+            "reason": "The package has 46 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "chardet"
+            "name": "chardet",
+            "reason": "The package has 32 release versions, above the 1-release signal limit."
           }
         ],
         "head": "e50e5945294f79ee9ab4ec69de24d14f9b26a7ae",
@@ -1685,7 +1877,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "pytest"
+            "name": "pytest",
+            "reason": "The package has 193 release versions, above the 1-release signal limit."
           }
         ],
         "head": "1672be5360805c06307c4ba91b73a65860da4834",
@@ -1697,11 +1890,13 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "pytest"
+            "name": "pytest",
+            "reason": "The package has 193 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "pytest_benchmark"
+            "name": "pytest_benchmark",
+            "reason": "The package has 51 release versions, above the 1-release signal limit."
           }
         ],
         "head": "2a58e7cb614787e532957562c2b6f9cc4a1f935b",
@@ -1713,7 +1908,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "griffe"
+            "name": "griffe",
+            "reason": "The package has 10 release versions, above the 1-release signal limit."
           }
         ],
         "head": "69e9ca4658a6471cadae5216b44ebfb4fde040f3",
@@ -1725,11 +1921,13 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "pytest"
+            "name": "pytest",
+            "reason": "The package has 193 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "pydantic_core"
+            "name": "pydantic_core",
+            "reason": "The package has 165 release versions, above the 1-release signal limit."
           }
         ],
         "head": "779361fe0c4ed5be8ea31e136b4353ae2e5fa673",
@@ -1741,11 +1939,13 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "pytest"
+            "name": "pytest",
+            "reason": "The package has 193 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "pytest_benchmark"
+            "name": "pytest_benchmark",
+            "reason": "The package has 51 release versions, above the 1-release signal limit."
           }
         ],
         "head": "dd0c36a4be235522e34659ba372c59b43b55f33e",
@@ -1757,7 +1957,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "typing_extensions"
+            "name": "typing_extensions",
+            "reason": "The package has 52 release versions, above the 1-release signal limit."
           }
         ],
         "head": "344c23787cdb3431dcc441b8b63ee9950f04b921",
@@ -1769,7 +1970,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "pytest-asyncio"
+            "name": "pytest-asyncio",
+            "reason": "The package has 80 release versions, above the 1-release signal limit."
           }
         ],
         "head": "3fe80c714fe18f2926b42997b55b05e6b2e90ab0",
@@ -1781,7 +1983,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "typing_extensions"
+            "name": "typing_extensions",
+            "reason": "The package has 52 release versions, above the 1-release signal limit."
           }
         ],
         "head": "4253f98a78e44ff693007edc439885d6f656eed6",
@@ -1793,11 +1996,13 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "pluggy"
+            "name": "pluggy",
+            "reason": "The package has 25 release versions, above the 1-release signal limit."
           },
           {
             "decision": "pass",
-            "name": "typing_extensions"
+            "name": "typing_extensions",
+            "reason": "The package has 52 release versions, above the 1-release signal limit."
           }
         ],
         "head": "79392133b63bc79efde860eb94901108b88cfcd6",
@@ -1809,7 +2014,8 @@
         "candidates": [
           {
             "decision": "pass",
-            "name": "pytest"
+            "name": "pytest",
+            "reason": "The package has 193 release versions, above the 1-release signal limit."
           }
         ],
         "head": "849fbda3ce87e3829b30d005979bee59928c01ff",
@@ -1869,16 +2075,64 @@
         "repo": "https://github.com/pytest-dev/pytest.git"
       }
     ],
+    "selection_parameters": {
+      "cutoff_date": "2026-11-01",
+      "max_commits_to_inspect": 5000,
+      "per_repo": 5,
+      "repositories": [
+        {
+          "default_branch": "main",
+          "url": "https://github.com/psf/requests.git"
+        },
+        {
+          "default_branch": "main",
+          "url": "https://github.com/pallets/flask.git"
+        },
+        {
+          "default_branch": "master",
+          "url": "https://github.com/encode/httpx.git"
+        },
+        {
+          "default_branch": "master",
+          "url": "https://github.com/fastapi/fastapi.git"
+        },
+        {
+          "default_branch": "main",
+          "url": "https://github.com/pydantic/pydantic.git"
+        },
+        {
+          "default_branch": "main",
+          "url": "https://github.com/psf/black.git"
+        },
+        {
+          "default_branch": "main",
+          "url": "https://github.com/pytest-dev/pytest.git"
+        },
+        {
+          "default_branch": "main",
+          "url": "https://github.com/Textualize/rich.git"
+        },
+        {
+          "default_branch": "main",
+          "url": "https://github.com/fastapi/sqlmodel.git"
+        },
+        {
+          "default_branch": "main",
+          "url": "https://github.com/pallets/click.git"
+        }
+      ],
+      "rule": "most recent first-parent commits on the default branch before the cutoff whose diff yields at least one dependency candidate"
+    },
     "warn_or_block_candidate_count": 0,
     "warn_or_block_candidate_false_positive_rate": 0.0,
     "warn_or_block_false_positive_rate": 0.0,
     "warn_or_block_pr_count": 0
   },
-  "recorded_at": "2026-11-27T10:41:03.865747Z",
+  "recorded_at": "2026-11-27T12:09:06.303531Z",
   "sha256": {
     "config": "88d023650992dc419848948f652dc892f4a87eb958990a70eeb4dec00856a39d",
-    "labels": "54e12a0e8867cdf7deaec8d6f2514d349ec5897650b188c48fe51eca4f2a9d62",
-    "registry": "3c19880c4e379414dbbcf568750b47b8473640f347cb1ec42776710da5ce63f4"
+    "labels": "42417eb7e3f68f133b4dbba8ac63be6adea6a1edbc341ffd23d55703a9499f51",
+    "registry": "3106580dfb961434a8b9e8c7a6605db2394be9bb14acca54db4473ffe6f11458"
   },
   "tool_version": "0.1.0"
 }
