@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import tomllib
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+from copy import deepcopy
 from datetime import datetime, timedelta
 from pathlib import PurePosixPath
 from typing import TypedDict
@@ -11,7 +12,12 @@ from typing import TypedDict
 from . import __version__
 from .config import ConfigError, GitSettings, SlopGuardConfig, parse_config
 from .contracts import Decision, DependencyResult, ScanReport, ScanWarning
-from .extractor import ExtractionWarning, extract_dependencies, local_modules_from_paths
+from .extractor import (
+    ExtractionWarning,
+    extract_dependencies,
+    local_modules_by_directory,
+    local_modules_from_paths,
+)
 from .git import GitRepository, GitWarning
 from .registry import RegistryClient, RegistryLookupResult
 from .registry_result import apply_registry_lookup
@@ -78,22 +84,38 @@ def run_scan(
         head_paths,
         project_name=base_effective["project_name"],
     )
-    extracted = extract_dependencies(changed_files, local_modules=local_modules)
+    extracted = extract_dependencies(
+        changed_files,
+        local_modules=local_modules,
+        local_modules_by_directory=local_modules_by_directory(head_paths),
+    )
     warnings.extend(_from_extraction_warning(item) for item in extracted.warnings)
 
     candidates = tuple(sorted(extracted.candidates, key=lambda item: item["normalized_name"]))
     lookup_client = client.with_settings(base_effective["config"].registry)
-    lookup_results = _lookup_candidates(candidates, lookup_client, base_effective["config"])
+    active_allowlist_entries = {
+        candidate["normalized_name"]: base_effective["config"].allowlist_entry_for(
+            candidate["normalized_name"], now=now
+        )
+        for candidate in candidates
+    }
+    lookup_candidates = tuple(
+        candidate
+        for candidate in candidates
+        if active_allowlist_entries[candidate["normalized_name"]] is None
+    )
+    lookup_results = _lookup_candidates(lookup_candidates, lookup_client, base_effective["config"])
     index = PopularPackageIndex.load()
     results: list[DependencyResult] = []
     for candidate in candidates:
         try:
             result = score_candidate(
                 candidate,
-                lookup_results[candidate["normalized_name"]],
+                lookup_results.get(candidate["normalized_name"]),
                 config=base_effective["config"],
                 index=index,
                 now=now,
+                allowlist_source=base_effective["source"],
             )
         except ValueError as error:
             locations = candidate.get("source_locations", [])
@@ -133,7 +155,7 @@ def run_scan(
         head=head,
         config_source=base_effective["source"],
         config_changed=config_changed,
-        lookup_used=min(len(candidates), base_effective["config"].registry.max_lookups),
+        lookup_used=min(len(lookup_candidates), base_effective["config"].registry.max_lookups),
         lookup_budget=base_effective["config"].registry.max_lookups,
         now=now,
     )
@@ -141,15 +163,40 @@ def run_scan(
 
 def score_candidate(
     candidate: DependencyResult,
-    lookup: RegistryLookupResult,
+    lookup: RegistryLookupResult | None,
     *,
     config: SlopGuardConfig,
     index: PopularPackageIndex,
     now: datetime,
+    allowlist_source: str | None = None,
 ) -> DependencyResult:
     """Apply recorded lookup, similarity and risk scoring to one candidate."""
 
-    enriched = apply_registry_lookup(candidate, lookup)
+    if lookup is None:
+        entry = config.allowlist_entry_for(candidate["normalized_name"], now=now)
+        if entry is None:
+            raise ValueError(
+                "Registry lookup is missing for a candidate without an active allow-list entry."
+            )
+        enriched = deepcopy(candidate)
+        expires = (
+            f"expires {entry.expires.isoformat()}"
+            if entry.expires is not None
+            else "does not expire"
+        )
+        enriched["metadata_evidence"].append(
+            {
+                "kind": "other",
+                "summary": (
+                    f"Active allow-list entry for {entry.name!r}: {entry.reason}; {expires}. "
+                    "PyPI lookup skipped."
+                ),
+                "source": allowlist_source or "active allow-list configuration",
+                "confidence": 1.0,
+            }
+        )
+    else:
+        enriched = apply_registry_lookup(candidate, lookup)
     matches = find_lookalikes(enriched["normalized_name"], index, config.similarity)
     compared = apply_similarity(enriched, matches)
     scored = score_result(compared, config, now=now)

@@ -16,7 +16,12 @@ from urllib.parse import urlsplit
 
 from packaging.utils import canonicalize_name
 
-from slopguard.extractor import extract_dependencies, is_supported_path, local_modules_from_paths
+from slopguard.extractor import (
+    extract_dependencies,
+    is_supported_path,
+    local_modules_by_directory,
+    local_modules_from_paths,
+)
 from slopguard.git import GitRepository
 from slopguard.registry import PyPIClient, RegistryLookupResult
 from slopguard.scan import run_scan
@@ -311,6 +316,7 @@ def _eligible_commits(
         extraction = extract_dependencies(
             changed_files,
             local_modules=local_modules_from_paths(head_paths, project_name=project_name),
+            local_modules_by_directory=local_modules_by_directory(head_paths),
         )
         if not extraction.candidates:
             continue

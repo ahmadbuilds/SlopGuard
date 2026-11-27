@@ -283,12 +283,48 @@ def test_expired_allowlist_entries_are_reported_as_warnings(short_tmp_path: Path
         encoding="utf-8",
     )
     base = _commit(root, "expired exception")
-    (root / "README.md").write_text("Documentation only.\n", encoding="utf-8")
-    head = _commit(root, "docs")
+    (root / "requirements.txt").write_text("old-package\n", encoding="utf-8")
+    client = FakeClient()
+    head = _commit(root, "add dependency with expired exception")
 
-    report = _scan(root, base, head, FakeClient())
+    report = _scan(root, base, head, client)
 
     assert any(item["kind"] == "expired_allowlist" for item in report["warnings"])
+    assert client.lookups == ["old-package"]
+    assert report["results"][0]["allowlisted"] is False
+
+
+def test_active_allowlist_skips_registry_lookup_and_records_exception(
+    short_tmp_path: Path,
+) -> None:
+    root, _ = _repo(short_tmp_path)
+    (root / "slopguard.toml").write_text(
+        "[[allowlist]]\n"
+        "name = 'internal-package'\n"
+        "reason = 'approved internal dependency'\n"
+        "expires = 2026-06-30\n",
+        encoding="utf-8",
+    )
+    base = _commit(root, "active exception")
+    (root / "requirements.txt").write_text("internal-package\n", encoding="utf-8")
+    client = FakeClient()
+    head = _commit(root, "add allow-listed dependency")
+
+    report = _scan(root, base, head, client)
+
+    assert client.lookups == []
+    assert report["lookups"] == {"used": 0, "budget": 500}
+    result = report["results"][0]
+    assert result["decision"] == "pass"
+    assert result["allowlisted"] is True
+    assert result["registry_exists"] is None
+    assert "registry_status" not in result
+    assert any(
+        "internal-package" in evidence["summary"]
+        and "2026-06-30" in evidence["summary"]
+        and "approved internal dependency" in evidence["summary"]
+        for evidence in result["metadata_evidence"]
+    )
 
 
 def test_scan_report_is_deterministic_for_fixed_repository_and_time(short_tmp_path: Path) -> None:
@@ -320,6 +356,70 @@ def test_project_and_test_helper_imports_are_treated_as_local(short_tmp_path: Pa
 
     assert report["results"] == []
     assert client.lookups == []
+
+
+def test_nested_source_module_does_not_hide_external_import(short_tmp_path: Path) -> None:
+    root, _ = _repo(short_tmp_path)
+    nested_module = root / "src" / "unrelated" / "requests.py"
+    nested_module.parent.mkdir(parents=True)
+    nested_module.write_text("VALUE = 1\n", encoding="utf-8")
+    base = _commit(root, "add unrelated namespace module")
+    (root / "app.py").write_text("import requests\n", encoding="utf-8")
+    head = _commit(root, "add external dependency import")
+    client = FakeClient()
+
+    report = _scan(root, base, head, client)
+
+    assert [result["normalized_name"] for result in report["results"]] == ["requests"]
+    assert client.lookups == ["requests"]
+
+
+@pytest.mark.parametrize(
+    ("directory", "script_name", "helper_name"),
+    [
+        ("scripts", "run.py", "helpers"),
+        ("tools", "build.py", "common"),
+        ("examples", "demo.py", "utils"),
+    ],
+)
+def test_sibling_python_modules_are_treated_as_local(
+    short_tmp_path: Path,
+    directory: str,
+    script_name: str,
+    helper_name: str,
+) -> None:
+    root, _ = _repo(short_tmp_path)
+    sibling_directory = root / directory
+    sibling_directory.mkdir()
+    (sibling_directory / f"{helper_name}.py").write_text("VALUE = 1\n", encoding="utf-8")
+    base = _commit(root, "add sibling helper module")
+    (sibling_directory / script_name).write_text(f"import {helper_name}\n", encoding="utf-8")
+    head = _commit(root, "add script using sibling helper")
+    client = FakeClient()
+
+    report = _scan(root, base, head, client)
+
+    assert report["results"] == []
+    assert client.lookups == []
+
+
+def test_test_helper_does_not_hide_external_import_in_application_code(
+    short_tmp_path: Path,
+) -> None:
+    root, _ = _repo(short_tmp_path)
+    tests_requests = root / "tests" / "requests.py"
+    tests_requests.parent.mkdir()
+    tests_requests.write_text("VALUE = 1\n", encoding="utf-8")
+    (tests_requests.parent / "test_a.py").write_text("import requests\n", encoding="utf-8")
+    base = _commit(root, "add test module named requests")
+    (root / "app.py").write_text("import requests\n", encoding="utf-8")
+    head = _commit(root, "add application dependency import")
+    client = FakeClient()
+
+    report = _scan(root, base, head, client)
+
+    assert [result["normalized_name"] for result in report["results"]] == ["requests"]
+    assert client.lookups == ["requests"]
 
 
 def test_mapped_imports_with_distribution_names_scan_successfully(short_tmp_path: Path) -> None:

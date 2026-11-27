@@ -99,6 +99,48 @@ def test_collector_selects_recent_first_parent_commit_with_supported_path(monkey
     assert limited.inspection_limit_reached is True
 
 
+@pytest.mark.parametrize(
+    ("helper_path", "script_path", "module", "expected_candidates"),
+    [
+        ("tools/helpers.py", "tools/run.py", "helpers", []),
+        (
+            "src/unrelated/requests.py",
+            "src/app/app.py",
+            "requests",
+            [["requests"]],
+        ),
+    ],
+)
+def test_collector_uses_scanner_module_scope(
+    tmp_path: Path,
+    helper_path: str,
+    script_path: str,
+    module: str,
+    expected_candidates: list[list[str]],
+) -> None:
+    root = tmp_path
+    _git(root, "init", "-b", "main")
+    _git(root, "config", "user.name", "Eval fixture")
+    _git(root, "config", "user.email", "eval@example.invalid")
+    (root / "README.md").write_text("base\n", encoding="utf-8")
+    _commit(root, "base")
+    helper = root / helper_path
+    helper.parent.mkdir(parents=True)
+    helper.write_text("VALUE = 1\n", encoding="utf-8")
+    _commit(root, "add helper module")
+    script = root / script_path
+    script.parent.mkdir(parents=True, exist_ok=True)
+    script.write_text(f"import {module}\n", encoding="utf-8")
+    _commit(root, "add script import")
+
+    selection = _eligible_commits(GitRepository(root), "main", date.fromisoformat("2027-01-01"), 1)
+
+    assert [
+        [candidate["normalized_name"] for candidate in commit.candidates]
+        for commit in selection.commits
+    ] == expected_candidates
+
+
 def test_collection_records_failed_repositories_and_continues(tmp_path: Path, monkeypatch) -> None:
     config = tmp_path / "repos.json"
     config.write_text(

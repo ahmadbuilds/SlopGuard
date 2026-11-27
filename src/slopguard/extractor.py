@@ -11,7 +11,7 @@ import ast
 import re
 import tomllib
 import warnings
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from pathlib import PurePosixPath
@@ -29,6 +29,7 @@ MAX_DIFF_INPUT_LINES = 2_000
 MAX_DIFF_INPUT_CHARACTERS = 1_000_000
 MAX_CHANGED_FILES = 1_000
 MAX_TOTAL_DIFF_INPUT_CHARACTERS = 20_000_000
+_SOURCE_ROOTS = frozenset({"lib", "src"})
 
 
 @dataclass(frozen=True)
@@ -75,6 +76,7 @@ def extract_dependencies(
     changed_files: Iterable[ChangedFile],
     *,
     local_modules: Iterable[str] | None = None,
+    local_modules_by_directory: Mapping[str, Iterable[str]] | None = None,
 ) -> ExtractionResult:
     """Return dependencies added in requirements, pyproject, and Python imports.
 
@@ -158,7 +160,14 @@ def extract_dependencies(
                         changed_file, added_lines, candidates, warnings, local_module_names
                     )
                 continue
-            _extract_imports(changed_file, candidates, warnings, local_module_names)
+            modules_for_file = local_module_names
+            if local_modules_by_directory is not None:
+                sibling_modules = local_modules_by_directory.get(
+                    PurePosixPath(changed_file.path.replace("\\", "/")).parent.as_posix(), ()
+                )
+                if sibling_modules:
+                    modules_for_file = local_module_names | set(sibling_modules)
+            _extract_imports(changed_file, candidates, warnings, modules_for_file)
             continue
 
         added_lines = _added_lines(changed_file.base_content, changed_file.content)
@@ -212,24 +221,24 @@ def _local_python_module_names(changed_files: tuple[ChangedFile, ...]) -> set[st
 
 
 def local_modules_from_paths(paths: Iterable[str], project_name: str | None = None) -> set[str]:
-    """Return top-level Python module names represented by repository paths."""
+    """Return repository-wide local imports from root, ``src/`` and ``lib/`` paths.
+
+    A file stem is top-level only when it is directly under the repository root, ``src/`` or
+    ``lib/``. Nested namespace-package files contribute their first import component, not their
+    leaf stem. Modules outside these roots are handled separately by
+    :func:`local_modules_by_directory`, so a sibling module is local to importers in its directory
+    without making nested files global.
+    """
 
     normalized_paths = tuple(PurePosixPath(value.replace("\\", "/")) for value in paths)
-    package_directories: set[tuple[str, ...]] = set()
-    for path in normalized_paths:
-        if path.suffix.lower() == ".py" and path.name == "__init__.py":
-            parts = path.parts
-            if parts and parts[0] in {"src", "lib"}:
-                parts = parts[1:]
-            package_directories.add(parts[:-1])
-
     names: set[str] = set()
     for original_path in normalized_paths:
         path = original_path
         if path.suffix.lower() != ".py":
             continue
         parts = list(path.parts)
-        if parts and parts[0] in {"src", "lib"}:
+        source_root = bool(parts and parts[0] in _SOURCE_ROOTS)
+        if source_root:
             parts = parts[1:]
         if not parts:
             continue
@@ -237,17 +246,26 @@ def local_modules_from_paths(paths: Iterable[str], project_name: str | None = No
         if top != "__init__":
             names.add(top)
         stem = path.stem
-        parent = tuple(parts[:-1])
-        package_ancestor = any(
-            parent[:index] in package_directories for index in range(1, len(parent) + 1)
-        )
-        if stem != "__init__" and not package_ancestor:
+        direct_import_module = len(parts) == 1
+        if stem != "__init__" and direct_import_module:
             names.add(stem)
     if project_name:
         import_name = project_name.lower().replace("-", "_")
         if import_name:
             names.add(import_name)
     return names
+
+
+def local_modules_by_directory(paths: Iterable[str]) -> dict[str, set[str]]:
+    """Return Python module names scoped to the directories that contain them."""
+
+    normalized_paths = tuple(PurePosixPath(value.replace("\\", "/")) for value in paths)
+    modules_by_directory: dict[str, set[str]] = {}
+    for path in normalized_paths:
+        if path.suffix.lower() != ".py" or path.name == "__init__.py":
+            continue
+        modules_by_directory.setdefault(path.parent.as_posix(), set()).add(path.stem)
+    return modules_by_directory
 
 
 def _extract_file(

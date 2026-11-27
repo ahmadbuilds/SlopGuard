@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from slopguard.cli import ExitCode, main
+from slopguard.cli import ExitCode, _summary, main
 from slopguard.registry import RegistryLookupResult
 
 
@@ -102,3 +102,89 @@ def test_cli_requires_base_and_head_together(short_tmp_path: Path, capsys) -> No
 
     assert exit_code == ExitCode.CONFIG_ERROR
     assert "provided together" in capsys.readouterr().err
+
+
+def test_summary_marks_passed_unknown_registry_results_as_unverified() -> None:
+    report = {
+        "decision": "pass",
+        "counts": {"by_decision": {"pass": 1, "warn": 0, "block": 0}},
+        "config_changed": False,
+        "results": [
+            {
+                "decision": "pass",
+                "requested_name": "reqeusts",
+                "registry_exists": None,
+                "registry_status": "transient_error",
+                "remediation": "Review this dependency.",
+            }
+        ],
+        "warnings": [],
+    }
+
+    summary = _summary(report, None)
+
+    assert "Unverified package metadata" in summary
+    assert "reqeusts" in summary
+    assert "transient\\_error" in summary
+    assert "not evidence that the package does not exist" in summary
+
+
+def test_summary_labels_active_allowlist_as_unqueried_registry_metadata() -> None:
+    report = {
+        "decision": "pass",
+        "counts": {"by_decision": {"pass": 1, "warn": 0, "block": 0}},
+        "config_changed": False,
+        "results": [
+            {
+                "decision": "pass",
+                "requested_name": "internal-package",
+                "registry_exists": None,
+                "allowlisted": True,
+                "metadata_evidence": [],
+            }
+        ],
+        "warnings": [],
+    }
+
+    summary = _summary(report, None)
+
+    assert r"internal\-package" in summary
+    assert "not queried" in summary
+    assert r"active allow\-list" in summary
+    assert "This package remains unverified" in summary
+
+
+def test_summary_keeps_unverified_results_visible_when_other_rows_are_truncated() -> None:
+    results = [
+        {
+            "decision": "warn",
+            "requested_name": f"known-package-{index}",
+            "registry_exists": True,
+            "registry_status": "exists",
+            "remediation": "x" * 1_000,
+        }
+        for index in range(300)
+    ]
+    results.append(
+        {
+            "decision": "pass",
+            "requested_name": "reqeusts",
+            "registry_exists": None,
+            "registry_status": "transient_error",
+            "remediation": "Review this dependency.",
+        }
+    )
+    report = {
+        "decision": "warn",
+        "counts": {"by_decision": {"pass": 1, "warn": 300, "block": 0}},
+        "config_changed": False,
+        "results": results,
+        "warnings": [],
+    }
+
+    summary = _summary(report, None)
+
+    assert "**Unverified registry results:** 1" in summary
+    assert "## Unverified package metadata" in summary
+    assert "reqeusts" in summary
+    assert "Summary truncated" in summary
