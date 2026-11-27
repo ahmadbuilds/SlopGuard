@@ -367,3 +367,24 @@ def test_prediction_loader_requires_finite_rule_risk_score(tmp_path: Path) -> No
 
     with pytest.raises(ValueError, match="risk_score must be a finite number"):
         _load_prediction_rows(path)
+
+
+def test_probabilities_are_rounded_so_float_noise_cannot_change_results() -> None:
+    from evals.classifier import _positive_probabilities
+    from evals.constants import CLASSIFIER_PROBABILITY_DECIMALS
+
+    class _Estimator:
+        classes_ = [0, 1]
+
+        def __init__(self, noise: float) -> None:
+            self.noise = noise
+
+        def predict_proba(self, matrix):
+            return [[1 - value - self.noise, value + self.noise] for value in (1e-9, 2e-9, 0.25)]
+
+    clean = _positive_probabilities(_Estimator(0.0), [[0.0]] * 3)
+    noisy = _positive_probabilities(_Estimator(1e-12), [[0.0]] * 3)
+
+    assert clean == noisy
+    assert clean[0] == clean[1] == 0.0
+    assert all(round(value, CLASSIFIER_PROBABILITY_DECIMALS) == value for value in clean)

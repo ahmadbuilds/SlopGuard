@@ -66,7 +66,7 @@ Scenario C: fit on recorded state, evaluate on attack time.
 
 | Scorer | TP | FP | TN | FN | Precision | Recall | FPR | F1 | ROC-AUC |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Classifier | 0 | 0 | 150 | 276 | n/a | 0.0000 | 0.0000 | n/a | 0.7718 |
+| Classifier | 0 | 0 | 150 | 276 | n/a | 0.0000 | 0.0000 | n/a | 0.7729 |
 | Defaults rule (warn/block) | 276 | 150 | 0 | 0 | 0.6479 | 1.0000 | 1.0000 | 0.7863 | 0.7646 |
 | Block rule | 90 | 2 | 148 | 186 | 0.9783 | 0.3261 | 0.0133 | 0.4891 | 0.7646 |
 

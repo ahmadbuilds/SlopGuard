@@ -18,6 +18,9 @@ DEFAULT_CLASSIFIER_CONCLUSION_PATH = Path("evals/data/classifier_conclusion.md")
 MAX_CLASSIFIER_CONCLUSION_BYTES = 64_000
 DEFAULT_CLASSIFIER_FOLDS = 5
 DEFAULT_CLASSIFIER_THRESHOLD = 0.5
+# Probabilities are rounded before thresholding and ROC-AUC so that floating-point noise between
+# CPUs and BLAS builds cannot reorder near-ties and change the committed results.
+CLASSIFIER_PROBABILITY_DECIMALS = 6
 DEFAULT_CLASSIFIER_MODEL = "logistic-regression"
 DEFAULT_CLASSIFIER_MAX_ITER = 1_000
 DEFAULT_CLASSIFIER_N_ESTIMATORS = 200

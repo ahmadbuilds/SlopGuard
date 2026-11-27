@@ -187,7 +187,7 @@
         "false_positive_rate": 0.0,
         "precision": null,
         "recall": 0.0,
-        "roc_auc": 0.771787
+        "roc_auc": 0.772886
       },
       "coefficients_full_training_fit": {
         "age_days_missing": 0.975117,
