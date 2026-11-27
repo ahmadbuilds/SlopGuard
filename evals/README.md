@@ -86,6 +86,18 @@ missing input. When both historical PR files exist, it includes them by default.
 accepts `--attack-time-days` and `--attack-time-releases` (both default to 1). CI compares
 checked-in deterministic files in `evals/results/`; volatile `run_info.json` is excluded.
 
+## Classifier comparison
+
+The optional offline classifier compares a scikit-learn model with the rule decisions in the four
+recorded and attack-time prediction files. It uses only their `features` objects, reports
+out-of-fold results for each scenario plus the recorded-to-attack-time shift, and writes to
+`evals/results/classifier/`. Install the optional evaluation group with
+`uv sync --locked --group eval`, then run `make classifier`. The classifier reads metadata rows
+only; it never installs, imports, or runs a scanned package.
+
+The report's conclusion is copied from `evals/data/classifier_conclusion.md`, a human-written
+source file. Edit that file, not the generated `report.md`, which CI compares byte for byte.
+
 ## Metrics
 
 The positive ground-truth class is `expected = "flag"`; `expected = "pass"` is negative and

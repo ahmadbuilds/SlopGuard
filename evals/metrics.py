@@ -9,6 +9,11 @@ FLAGGED_WARN_OR_BLOCK = frozenset({"warn", "block"})
 FLAGGED_BLOCK_ONLY = frozenset({"block"})
 
 
+def format_metric(value: object) -> str:
+    """Format a metric for Markdown with the shared four-decimal convention."""
+    return "n/a" if value is None else f"{float(value):.4f}"
+
+
 def binary_metrics(
     rows: Iterable[Mapping[str, str]],
     *,

@@ -85,9 +85,18 @@ def test_release_reuses_ci_workflow_and_ci_supports_workflow_call() -> None:
 def test_ci_replays_eval_outputs_on_python_311() -> None:
     ci = _load_yaml(ROOT / ".github/workflows/ci.yml")
     job = ci["jobs"]["eval"]
-    assert job["steps"][-2]["run"] == "make eval"
-    assert "evals/results" in job["steps"][-1]["run"]
-    assert "run_info.json" in job["steps"][-1]["run"]
+    commands = [step.get("run", "") for step in job["steps"]]
+    assert "uv sync --locked --group eval" in commands
+    assert "make eval" in commands
+    assert "make classifier" in commands
+    assert "uv run pytest tests/unit/test_classifier.py" in commands
+    assert any("evals/results" in command for command in commands if command.startswith("git diff"))
+    assert any(
+        "evals/results/classifier" in command
+        for command in commands
+        if command.startswith("git diff")
+    )
+    assert all("run_info.json" in command for command in commands if command.startswith("git diff"))
     setup_uv = next(
         item for item in _walk(job) if item.get("uses", "").startswith("astral-sh/setup-uv@")
     )
@@ -95,6 +104,7 @@ def test_ci_replays_eval_outputs_on_python_311() -> None:
     makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
     assert "evals/data/real_prs.jsonl" in makefile
     assert "evals/data/real_prs_registry.jsonl.gz" in makefile
+    assert "classifier:" in makefile
 
 
 def test_wheel_package_discovery_excludes_evaluation_tools() -> None:
