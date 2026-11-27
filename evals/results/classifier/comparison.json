@@ -1,0 +1,237 @@
+{
+  "input_sha256": {
+    "block_attack_time": "e56053f8ad6f5633e4a0e64d9c2b13a56c1d06e1de821661c1dd12bba5539f41",
+    "block_predictions": "aba7c90f847e91141d8b368e313799c8699ce3080148726e64eea69dfa8b180c",
+    "defaults_attack_time": "ad213d12ecc8a79f4ec2b676b30c19220484bd139f5ffdd363d2eeb35591a949",
+    "defaults_predictions": "da3809ce0b1b22cd43abb0ed8f2160dcb862abebeac249f132f1f0e47ca253ac"
+  },
+  "parameters": {
+    "folds": 5,
+    "model": "logistic-regression",
+    "seed": 11608,
+    "sklearn_version": "1.9.1",
+    "threshold": 0.5
+  },
+  "row_counts": {
+    "attack_time": {
+      "flag": 276,
+      "pass": 150
+    },
+    "recorded_state": {
+      "flag": 276,
+      "pass": 150
+    }
+  },
+  "scenarios": {
+    "attack_time": {
+      "block_rule_block_only": {
+        "confusion": {
+          "fn": 186,
+          "fp": 2,
+          "tn": 148,
+          "tp": 90
+        },
+        "f1": 0.48913,
+        "false_positive_rate": 0.013333,
+        "precision": 0.978261,
+        "recall": 0.326087,
+        "roc_auc": 0.764553
+      },
+      "classifier": {
+        "confusion": {
+          "fn": 94,
+          "fp": 7,
+          "tn": 143,
+          "tp": 182
+        },
+        "f1": 0.782796,
+        "false_positive_rate": 0.046667,
+        "precision": 0.962963,
+        "recall": 0.65942,
+        "roc_auc": 0.84401
+      },
+      "coefficients_full_data_fit": {
+        "age_days_missing": 0.0,
+        "best_edit_distance": -1.337467,
+        "best_similarity": 3.295489,
+        "has_source": 0.0,
+        "log1p_age_days": -0.0,
+        "log1p_release_count": -0.0,
+        "log_best_rank": -3.247125,
+        "no_lookalike": -1.87872,
+        "registry_status=exists": 0.0,
+        "release_count_missing": 0.0
+      },
+      "defaults_rule_warn_or_block": {
+        "confusion": {
+          "fn": 0,
+          "fp": 150,
+          "tn": 0,
+          "tp": 276
+        },
+        "f1": 0.786325,
+        "false_positive_rate": 1.0,
+        "precision": 0.647887,
+        "recall": 1.0,
+        "roc_auc": 0.764553
+      },
+      "diagnostics": {
+        "class_counts": {
+          "flag": 276,
+          "pass": 150
+        },
+        "constant_features": [
+          "registry_status=exists",
+          "log1p_age_days",
+          "age_days_missing",
+          "log1p_release_count",
+          "release_count_missing",
+          "has_source"
+        ],
+        "perfect_separating_features": []
+      },
+      "validation": "out-of-fold stratified cross-validation"
+    },
+    "recorded_state": {
+      "block_rule_block_only": {
+        "confusion": {
+          "fn": 92,
+          "fp": 0,
+          "tn": 150,
+          "tp": 184
+        },
+        "f1": 0.8,
+        "false_positive_rate": 0.0,
+        "precision": 1.0,
+        "recall": 0.666667,
+        "roc_auc": 1.0
+      },
+      "classifier": {
+        "confusion": {
+          "fn": 0,
+          "fp": 0,
+          "tn": 150,
+          "tp": 276
+        },
+        "f1": 1.0,
+        "false_positive_rate": 0.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "coefficients_full_data_fit": {
+        "age_days_missing": 0.975117,
+        "best_edit_distance": -0.033323,
+        "best_similarity": 0.164055,
+        "has_source": -0.567707,
+        "log1p_age_days": -0.916021,
+        "log1p_release_count": -0.728359,
+        "log_best_rank": -0.075233,
+        "no_lookalike": -0.133255,
+        "registry_status=exists": -0.975117,
+        "registry_status=not_found": 0.975117,
+        "release_count_missing": 0.975117
+      },
+      "defaults_rule_warn_or_block": {
+        "confusion": {
+          "fn": 0,
+          "fp": 1,
+          "tn": 149,
+          "tp": 276
+        },
+        "f1": 0.998192,
+        "false_positive_rate": 0.006667,
+        "precision": 0.99639,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "diagnostics": {
+        "class_counts": {
+          "flag": 276,
+          "pass": 150
+        },
+        "constant_features": [],
+        "perfect_separating_features": [
+          "registry_status=exists",
+          "registry_status=not_found",
+          "log1p_age_days",
+          "age_days_missing",
+          "log1p_release_count",
+          "release_count_missing"
+        ]
+      },
+      "validation": "out-of-fold stratified cross-validation"
+    },
+    "recorded_to_attack_time_shift": {
+      "block_rule_block_only": {
+        "confusion": {
+          "fn": 186,
+          "fp": 2,
+          "tn": 148,
+          "tp": 90
+        },
+        "f1": 0.48913,
+        "false_positive_rate": 0.013333,
+        "precision": 0.978261,
+        "recall": 0.326087,
+        "roc_auc": 0.764553
+      },
+      "classifier": {
+        "confusion": {
+          "fn": 276,
+          "fp": 0,
+          "tn": 150,
+          "tp": 0
+        },
+        "f1": null,
+        "false_positive_rate": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "roc_auc": 0.771787
+      },
+      "coefficients_full_training_fit": {
+        "age_days_missing": 0.975117,
+        "best_edit_distance": -0.033323,
+        "best_similarity": 0.164055,
+        "has_source": -0.567707,
+        "log1p_age_days": -0.916021,
+        "log1p_release_count": -0.728359,
+        "log_best_rank": -0.075233,
+        "no_lookalike": -0.133255,
+        "registry_status=exists": -0.975117,
+        "registry_status=not_found": 0.975117,
+        "release_count_missing": 0.975117
+      },
+      "defaults_rule_warn_or_block": {
+        "confusion": {
+          "fn": 0,
+          "fp": 150,
+          "tn": 0,
+          "tp": 276
+        },
+        "f1": 0.786325,
+        "false_positive_rate": 1.0,
+        "precision": 0.647887,
+        "recall": 1.0,
+        "roc_auc": 0.764553
+      },
+      "diagnostics": {
+        "class_counts": {
+          "flag": 276,
+          "pass": 150
+        },
+        "constant_features": [
+          "registry_status=exists",
+          "registry_status=not_found",
+          "log1p_age_days",
+          "age_days_missing",
+          "log1p_release_count",
+          "release_count_missing",
+          "has_source"
+        ],
+        "perfect_separating_features": []
+      },
+      "validation": "fit on all recorded-state rows; evaluated on all attack-time rows"
+    }
+  }
+}
