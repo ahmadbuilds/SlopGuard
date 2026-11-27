@@ -11,11 +11,13 @@ import pytest
 from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
-from slopguard.config import ConfigError
+from slopguard.config import ConfigError, SlopGuardConfig
 from slopguard.contracts import load_result_schema, load_scan_report_schema
+from slopguard.extractor import ChangedFile, extract_dependencies
 from slopguard.git import GitRepository
 from slopguard.registry import RegistryLookupResult
-from slopguard.scan import run_scan
+from slopguard.scan import run_scan, score_candidate
+from slopguard.similarity import PopularPackageIndex
 
 NOW = datetime(2026, 5, 1, tzinfo=UTC)
 
@@ -48,6 +50,9 @@ class FakeClient:
             rate_limit_remaining=None,
             error=None,
         )
+
+    def with_settings(self, settings):
+        return self
 
 
 def _git(root: Path, *arguments: str) -> str:
@@ -103,10 +108,68 @@ def test_scan_finds_new_dependency_and_report_validates(short_tmp_path: Path) ->
     assert report["repository"] == "example/project"
     assert [result["normalized_name"] for result in report["results"]] == ["requests"]
     assert client.lookups == ["requests"]
+    candidate = extract_dependencies([ChangedFile("requirements.txt", "", "requests\n")])
+    direct_result = score_candidate(
+        candidate.candidates[0],
+        FakeClient().lookup("requests"),
+        config=SlopGuardConfig(),
+        index=PopularPackageIndex.load(),
+        now=NOW,
+    )
+    assert direct_result == report["results"][0]
     result_schema = load_result_schema()
     registry = Registry().with_resource(result_schema["$id"], Resource.from_contents(result_schema))
     validator = Draft202012Validator(load_scan_report_schema(), registry=registry)
     validator.validate(report)
+
+
+def test_scan_warns_and_succeeds_for_invalid_import_distribution(short_tmp_path: Path) -> None:
+    root, base = _repo(short_tmp_path)
+    cookies = root / "src" / "requests" / "cookies.py"
+    cookies.parent.mkdir(parents=True)
+    cookies.write_text("import _typeshed\n", encoding="utf-8")
+    head = _commit(root, "add type-only import")
+    client = FakeClient()
+
+    report = _scan(root, base, head, client)
+
+    assert report["results"] == []
+    assert report["warnings"] == [
+        {
+            "file": "src/requests/cookies.py",
+            "line": 1,
+            "message": "'_typeshed' cannot be a PyPI distribution name; not checked",
+            "kind": "extraction",
+        }
+    ]
+    assert report["decision"] == "pass"
+    assert client.lookups == []
+
+
+def test_candidate_scoring_value_error_warns_without_counting_as_pass(
+    short_tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, base = _repo(short_tmp_path)
+    (root / "requirements.txt").write_text("requests\n", encoding="utf-8")
+    head = _commit(root, "add dependency")
+
+    def fail_scoring(*_args, **_kwargs):
+        raise ValueError("fixture scoring failure")
+
+    monkeypatch.setattr("slopguard.scan.score_candidate", fail_scoring)
+    report = _scan(root, base, head, FakeClient())
+
+    assert report["results"] == []
+    assert report["decision"] == "warn"
+    assert report["counts"]["by_decision"] == {"pass": 0, "warn": 0, "block": 0}
+    assert report["warnings"] == [
+        {
+            "file": "requirements.txt",
+            "line": 1,
+            "message": "Dependency candidate 'requests' could not be evaluated: fixture scoring failure",
+            "kind": "candidate_error",
+        }
+    ]
 
 
 def test_scan_uses_base_tip_policy_and_reports_head_config_change(short_tmp_path: Path) -> None:

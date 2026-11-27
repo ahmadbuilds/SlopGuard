@@ -1,0 +1,1884 @@
+{
+  "attack_time": {
+    "days": 1,
+    "metrics": {
+      "by_category": {
+        "malicious-package": {
+          "count": 100,
+          "flagged_block": {
+            "confusion": {
+              "fn": 98,
+              "fp": 0,
+              "tn": 0,
+              "tp": 2
+            },
+            "f1": 0.0392156862745098,
+            "false_positive_rate": null,
+            "precision": 1.0,
+            "recall": 0.02
+          },
+          "flagged_warn_or_block": {
+            "confusion": {
+              "fn": 0,
+              "fp": 0,
+              "tn": 0,
+              "tp": 100
+            },
+            "f1": 1.0,
+            "false_positive_rate": null,
+            "precision": 1.0,
+            "recall": 1.0
+          }
+        },
+        "rank-stratum-1": {
+          "count": 20,
+          "flagged_block": {
+            "confusion": {
+              "fn": 0,
+              "fp": 0,
+              "tn": 20,
+              "tp": 0
+            },
+            "f1": null,
+            "false_positive_rate": 0.0,
+            "precision": null,
+            "recall": null
+          },
+          "flagged_warn_or_block": {
+            "confusion": {
+              "fn": 0,
+              "fp": 20,
+              "tn": 0,
+              "tp": 0
+            },
+            "f1": null,
+            "false_positive_rate": 1.0,
+            "precision": 0.0,
+            "recall": null
+          }
+        },
+        "rank-stratum-2": {
+          "count": 20,
+          "flagged_block": {
+            "confusion": {
+              "fn": 0,
+              "fp": 0,
+              "tn": 20,
+              "tp": 0
+            },
+            "f1": null,
+            "false_positive_rate": 0.0,
+            "precision": null,
+            "recall": null
+          },
+          "flagged_warn_or_block": {
+            "confusion": {
+              "fn": 0,
+              "fp": 20,
+              "tn": 0,
+              "tp": 0
+            },
+            "f1": null,
+            "false_positive_rate": 1.0,
+            "precision": 0.0,
+            "recall": null
+          }
+        },
+        "rank-stratum-3": {
+          "count": 20,
+          "flagged_block": {
+            "confusion": {
+              "fn": 0,
+              "fp": 0,
+              "tn": 20,
+              "tp": 0
+            },
+            "f1": null,
+            "false_positive_rate": 0.0,
+            "precision": null,
+            "recall": null
+          },
+          "flagged_warn_or_block": {
+            "confusion": {
+              "fn": 0,
+              "fp": 20,
+              "tn": 0,
+              "tp": 0
+            },
+            "f1": null,
+            "false_positive_rate": 1.0,
+            "precision": 0.0,
+            "recall": null
+          }
+        },
+        "rank-stratum-4": {
+          "count": 20,
+          "flagged_block": {
+            "confusion": {
+              "fn": 0,
+              "fp": 0,
+              "tn": 20,
+              "tp": 0
+            },
+            "f1": null,
+            "false_positive_rate": 0.0,
+            "precision": null,
+            "recall": null
+          },
+          "flagged_warn_or_block": {
+            "confusion": {
+              "fn": 0,
+              "fp": 20,
+              "tn": 0,
+              "tp": 0
+            },
+            "f1": null,
+            "false_positive_rate": 1.0,
+            "precision": 0.0,
+            "recall": null
+          }
+        },
+        "rank-stratum-5": {
+          "count": 20,
+          "flagged_block": {
+            "confusion": {
+              "fn": 0,
+              "fp": 0,
+              "tn": 20,
+              "tp": 0
+            },
+            "f1": null,
+            "false_positive_rate": 0.0,
+            "precision": null,
+            "recall": null
+          },
+          "flagged_warn_or_block": {
+            "confusion": {
+              "fn": 0,
+              "fp": 20,
+              "tn": 0,
+              "tp": 0
+            },
+            "f1": null,
+            "false_positive_rate": 1.0,
+            "precision": 0.0,
+            "recall": null
+          }
+        },
+        "synthetic-deletion": {
+          "count": 37,
+          "flagged_block": {
+            "confusion": {
+              "fn": 16,
+              "fp": 0,
+              "tn": 0,
+              "tp": 21
+            },
+            "f1": 0.7241379310344828,
+            "false_positive_rate": null,
+            "precision": 1.0,
+            "recall": 0.5675675675675675
+          },
+          "flagged_warn_or_block": {
+            "confusion": {
+              "fn": 0,
+              "fp": 0,
+              "tn": 0,
+              "tp": 37
+            },
+            "f1": 1.0,
+            "false_positive_rate": null,
+            "precision": 1.0,
+            "recall": 1.0
+          }
+        },
+        "synthetic-insertion": {
+          "count": 49,
+          "flagged_block": {
+            "confusion": {
+              "fn": 30,
+              "fp": 0,
+              "tn": 0,
+              "tp": 19
+            },
+            "f1": 0.5588235294117647,
+            "false_positive_rate": null,
+            "precision": 1.0,
+            "recall": 0.3877551020408163
+          },
+          "flagged_warn_or_block": {
+            "confusion": {
+              "fn": 0,
+              "fp": 0,
+              "tn": 0,
+              "tp": 49
+            },
+            "f1": 1.0,
+            "false_positive_rate": null,
+            "precision": 1.0,
+            "recall": 1.0
+          }
+        },
+        "synthetic-separator-change": {
+          "count": 26,
+          "flagged_block": {
+            "confusion": {
+              "fn": 11,
+              "fp": 0,
+              "tn": 0,
+              "tp": 15
+            },
+            "f1": 0.7317073170731707,
+            "false_positive_rate": null,
+            "precision": 1.0,
+            "recall": 0.5769230769230769
+          },
+          "flagged_warn_or_block": {
+            "confusion": {
+              "fn": 0,
+              "fp": 0,
+              "tn": 0,
+              "tp": 26
+            },
+            "f1": 1.0,
+            "false_positive_rate": null,
+            "precision": 1.0,
+            "recall": 1.0
+          }
+        },
+        "synthetic-substitution": {
+          "count": 26,
+          "flagged_block": {
+            "confusion": {
+              "fn": 12,
+              "fp": 0,
+              "tn": 0,
+              "tp": 14
+            },
+            "f1": 0.7000000000000001,
+            "false_positive_rate": null,
+            "precision": 1.0,
+            "recall": 0.5384615384615384
+          },
+          "flagged_warn_or_block": {
+            "confusion": {
+              "fn": 0,
+              "fp": 0,
+              "tn": 0,
+              "tp": 26
+            },
+            "f1": 1.0,
+            "false_positive_rate": null,
+            "precision": 1.0,
+            "recall": 1.0
+          }
+        },
+        "synthetic-transposition": {
+          "count": 38,
+          "flagged_block": {
+            "confusion": {
+              "fn": 19,
+              "fp": 0,
+              "tn": 0,
+              "tp": 19
+            },
+            "f1": 0.6666666666666666,
+            "false_positive_rate": null,
+            "precision": 1.0,
+            "recall": 0.5
+          },
+          "flagged_warn_or_block": {
+            "confusion": {
+              "fn": 0,
+              "fp": 0,
+              "tn": 0,
+              "tp": 38
+            },
+            "f1": 1.0,
+            "false_positive_rate": null,
+            "precision": 1.0,
+            "recall": 1.0
+          }
+        }
+      },
+      "excluded_count": 69,
+      "flagged_block": {
+        "confusion": {
+          "fn": 186,
+          "fp": 0,
+          "tn": 100,
+          "tp": 90
+        },
+        "f1": 0.4918032786885246,
+        "false_positive_rate": 0.0,
+        "precision": 1.0,
+        "recall": 0.32608695652173914
+      },
+      "flagged_warn_or_block": {
+        "confusion": {
+          "fn": 0,
+          "fp": 100,
+          "tn": 0,
+          "tp": 276
+        },
+        "f1": 0.8466257668711656,
+        "false_positive_rate": 1.0,
+        "precision": 0.7340425531914894,
+        "recall": 1.0
+      },
+      "included_count": 376
+    },
+    "releases": 1
+  },
+  "git_commit": null,
+  "metrics": {
+    "by_category": {
+      "malicious-package": {
+        "count": 100,
+        "flagged_block": {
+          "confusion": {
+            "fn": 92,
+            "fp": 0,
+            "tn": 0,
+            "tp": 8
+          },
+          "f1": 0.14814814814814814,
+          "false_positive_rate": null,
+          "precision": 1.0,
+          "recall": 0.08
+        },
+        "flagged_warn_or_block": {
+          "confusion": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 0,
+            "tp": 100
+          },
+          "f1": 1.0,
+          "false_positive_rate": null,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      },
+      "rank-stratum-1": {
+        "count": 20,
+        "flagged_block": {
+          "confusion": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 20,
+            "tp": 0
+          },
+          "f1": null,
+          "false_positive_rate": 0.0,
+          "precision": null,
+          "recall": null
+        },
+        "flagged_warn_or_block": {
+          "confusion": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 20,
+            "tp": 0
+          },
+          "f1": null,
+          "false_positive_rate": 0.0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "rank-stratum-2": {
+        "count": 20,
+        "flagged_block": {
+          "confusion": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 20,
+            "tp": 0
+          },
+          "f1": null,
+          "false_positive_rate": 0.0,
+          "precision": null,
+          "recall": null
+        },
+        "flagged_warn_or_block": {
+          "confusion": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 20,
+            "tp": 0
+          },
+          "f1": null,
+          "false_positive_rate": 0.0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "rank-stratum-3": {
+        "count": 20,
+        "flagged_block": {
+          "confusion": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 20,
+            "tp": 0
+          },
+          "f1": null,
+          "false_positive_rate": 0.0,
+          "precision": null,
+          "recall": null
+        },
+        "flagged_warn_or_block": {
+          "confusion": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 20,
+            "tp": 0
+          },
+          "f1": null,
+          "false_positive_rate": 0.0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "rank-stratum-4": {
+        "count": 20,
+        "flagged_block": {
+          "confusion": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 20,
+            "tp": 0
+          },
+          "f1": null,
+          "false_positive_rate": 0.0,
+          "precision": null,
+          "recall": null
+        },
+        "flagged_warn_or_block": {
+          "confusion": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 20,
+            "tp": 0
+          },
+          "f1": null,
+          "false_positive_rate": 0.0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "rank-stratum-5": {
+        "count": 20,
+        "flagged_block": {
+          "confusion": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 20,
+            "tp": 0
+          },
+          "f1": null,
+          "false_positive_rate": 0.0,
+          "precision": null,
+          "recall": null
+        },
+        "flagged_warn_or_block": {
+          "confusion": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 20,
+            "tp": 0
+          },
+          "f1": null,
+          "false_positive_rate": 0.0,
+          "precision": null,
+          "recall": null
+        }
+      },
+      "synthetic-deletion": {
+        "count": 37,
+        "flagged_block": {
+          "confusion": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 0,
+            "tp": 37
+          },
+          "f1": 1.0,
+          "false_positive_rate": null,
+          "precision": 1.0,
+          "recall": 1.0
+        },
+        "flagged_warn_or_block": {
+          "confusion": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 0,
+            "tp": 37
+          },
+          "f1": 1.0,
+          "false_positive_rate": null,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      },
+      "synthetic-insertion": {
+        "count": 49,
+        "flagged_block": {
+          "confusion": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 0,
+            "tp": 49
+          },
+          "f1": 1.0,
+          "false_positive_rate": null,
+          "precision": 1.0,
+          "recall": 1.0
+        },
+        "flagged_warn_or_block": {
+          "confusion": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 0,
+            "tp": 49
+          },
+          "f1": 1.0,
+          "false_positive_rate": null,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      },
+      "synthetic-separator-change": {
+        "count": 26,
+        "flagged_block": {
+          "confusion": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 0,
+            "tp": 26
+          },
+          "f1": 1.0,
+          "false_positive_rate": null,
+          "precision": 1.0,
+          "recall": 1.0
+        },
+        "flagged_warn_or_block": {
+          "confusion": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 0,
+            "tp": 26
+          },
+          "f1": 1.0,
+          "false_positive_rate": null,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      },
+      "synthetic-substitution": {
+        "count": 26,
+        "flagged_block": {
+          "confusion": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 0,
+            "tp": 26
+          },
+          "f1": 1.0,
+          "false_positive_rate": null,
+          "precision": 1.0,
+          "recall": 1.0
+        },
+        "flagged_warn_or_block": {
+          "confusion": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 0,
+            "tp": 26
+          },
+          "f1": 1.0,
+          "false_positive_rate": null,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      },
+      "synthetic-transposition": {
+        "count": 38,
+        "flagged_block": {
+          "confusion": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 0,
+            "tp": 38
+          },
+          "f1": 1.0,
+          "false_positive_rate": null,
+          "precision": 1.0,
+          "recall": 1.0
+        },
+        "flagged_warn_or_block": {
+          "confusion": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 0,
+            "tp": 38
+          },
+          "f1": 1.0,
+          "false_positive_rate": null,
+          "precision": 1.0,
+          "recall": 1.0
+        }
+      }
+    },
+    "excluded_count": 69,
+    "excluded_rows": [
+      {
+        "name": "accelerate",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "asn1crypto",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "certifi",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "cryptography",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "datasets",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "djitellopy",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "easyocr",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "facenet-pytorch",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "faster-whisper",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "geopandas",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "google-auth",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "google-cloud-vision",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "google-genai",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "gpiozero",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "gradio",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "gspread",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "influxdb-client",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "joblib",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "lgpio",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "librosa",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "matplotlib",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "minimalmodbus",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "mt-940",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "mt940",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "numpy",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "obd",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "oletools",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "openai-whisper",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "opencv-python",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "opencv-python-headless",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "openpyxl",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "pandas",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "peft",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "phack",
+        "reason": "exists on PyPI; needs human review"
+      },
+      {
+        "name": "Pillow",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "psxdata",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "psycopg",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "psycopg2-binary",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "pyacl",
+        "reason": "exists on PyPI; needs human review"
+      },
+      {
+        "name": "pydicom",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "pyHanko",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "pyhanko-certvalidator",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "pymodbus",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "PyMuPDF",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "pyogrio",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "pypdfium2",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "pyserial",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "pytesseract",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "python-barcode",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "python-dotenv",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "python-escpos",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "rapidfuzz",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "reportlab",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "requests",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "safetensors",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "schedule",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "scikit-learn",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "seaborn",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "shapely",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "simplefix",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "soundfile",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "torch",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "torchvision",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "transformers",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "trl",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "twilio",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "ultralytics",
+        "reason": "LLM-suggested name exists on PyPI (not a hallucination)"
+      },
+      {
+        "name": "vcrypt",
+        "reason": "exists on PyPI; needs human review"
+      },
+      {
+        "name": "ztdata",
+        "reason": "exists on PyPI; needs human review"
+      }
+    ],
+    "exists_synthetic_review_exclusions": [
+      "phack",
+      "pyacl",
+      "vcrypt",
+      "ztdata"
+    ],
+    "flagged_block": {
+      "confusion": {
+        "fn": 92,
+        "fp": 0,
+        "tn": 100,
+        "tp": 184
+      },
+      "f1": 0.8,
+      "false_positive_rate": 0.0,
+      "precision": 1.0,
+      "recall": 0.6666666666666666
+    },
+    "flagged_warn_or_block": {
+      "confusion": {
+        "fn": 0,
+        "fp": 0,
+        "tn": 100,
+        "tp": 276
+      },
+      "f1": 1.0,
+      "false_positive_rate": 0.0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    "hallucinated_outputs": {
+      "by_model": {
+        "ChatGPT Pro (model 6.2 Sol), chatgpt.com, web search setting off": {
+          "checked_count": 49,
+          "flagged_not_found_block_count": 0,
+          "flagged_not_found_warn_or_block_count": 0,
+          "hallucination_rate": 0.0,
+          "inconclusive_count": 0,
+          "not_found_count": 0,
+          "suggested_by_models_count": 49
+        },
+        "Gemini (free, Auto), gemini.google.com, search disabled by instruction": {
+          "checked_count": 49,
+          "flagged_not_found_block_count": 0,
+          "flagged_not_found_warn_or_block_count": 0,
+          "hallucination_rate": 0.0,
+          "inconclusive_count": 0,
+          "not_found_count": 0,
+          "suggested_by_models_count": 49
+        }
+      },
+      "checked_count": 65,
+      "flagged_not_found_block_count": 0,
+      "flagged_not_found_warn_or_block_count": 0,
+      "hallucination_rate": 0.0,
+      "inconclusive_count": 0,
+      "not_found_count": 0
+    },
+    "included_count": 376
+  },
+  "real_prs": {
+    "block_candidate_count": 0,
+    "block_candidate_false_positive_rate": 0.0,
+    "block_false_positive_rate": 0.0,
+    "block_pr_count": 0,
+    "candidate_count": 109,
+    "failed_repositories": [],
+    "flagged_candidates": [],
+    "pr_count": 50,
+    "pull_requests": [
+      {
+        "base": "245649b3e2d6e16aef315d95904df26bee7b8550",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "importlib-metadata"
+          }
+        ],
+        "head": "027a4727a5b8f8407109c01df5e24604352bbe50",
+        "repo": "https://github.com/Textualize/rich.git",
+        "subject": "Merge pull request #3350 from ofek/fix-test-warning"
+      },
+      {
+        "base": "b8975c5fd33c77b40d78c20803230083c10fd531",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "pytest"
+          }
+        ],
+        "head": "42bfda8b51f7bd253d04439aea36ff88122237fc",
+        "repo": "https://github.com/Textualize/rich.git",
+        "subject": "Merge pull request #3226 from mgorny/no_color"
+      },
+      {
+        "base": "21b3800894f6a81d3f68a0e34796be67e3ccd39f",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "typing_extensions"
+          }
+        ],
+        "head": "e0c7e96b303e6f3e48818380527129fb21f453f3",
+        "repo": "https://github.com/Textualize/rich.git",
+        "subject": "Merge pull request #3783 from Textualize/live-typing"
+      },
+      {
+        "base": "68224905f5dc7a3c765e04aba0460b75a95f5004",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "typing_extensions"
+          }
+        ],
+        "head": "ea78218244cfa743c8cd06fc7808560233ac58df",
+        "repo": "https://github.com/Textualize/rich.git",
+        "subject": "Merge pull request #2977 from Textualize/markdown-tables"
+      },
+      {
+        "base": "53757bc234cf18977cade41a5b64f3abaccb0b85",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "pytest"
+          },
+          {
+            "decision": "pass",
+            "name": "wcwidth"
+          }
+        ],
+        "head": "f000c3149166cc2091b801b63b0a55e806c5d49b",
+        "repo": "https://github.com/Textualize/rich.git",
+        "subject": "Merge pull request #3930 from Textualize/cell-string"
+      },
+      {
+        "base": "1b7f39eb44304f76b5f402914a2d2fbf57dc24c6",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "anyio"
+          }
+        ],
+        "head": "280a89a4d13b65852b065b3e1aaa53d388946a88",
+        "repo": "https://github.com/encode/httpx.git",
+        "subject": "Support newer versions of httpcore (#2885)"
+      },
+      {
+        "base": "5b156dca7f3ec637b575708198f60a062109f141",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "click"
+          }
+        ],
+        "head": "2c49a151d270cc612f61c4094dbf281cbf2f63a4",
+        "repo": "https://github.com/encode/httpx.git",
+        "subject": "Pin CI version of `click` to resolve mypy error (#2769)"
+      },
+      {
+        "base": "7df47ce4d93a06f2c3310cd692b4c2336d7663ba",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "zstandard"
+          }
+        ],
+        "head": "392dbe45f086d0877bd288c5d68abf860653b680",
+        "repo": "https://github.com/encode/httpx.git",
+        "subject": "Add support for zstd decoding (#3139)"
+      },
+      {
+        "base": "3f76571d3429497c4ee4ecf5d8bc034b6f765957",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "brotli"
+          },
+          {
+            "decision": "pass",
+            "name": "brotlicffi"
+          },
+          {
+            "decision": "pass",
+            "name": "zstandard"
+          }
+        ],
+        "head": "8e36f2bc685dfbe43cd7503bc1c422a6ed6e05a5",
+        "repo": "https://github.com/encode/httpx.git",
+        "subject": "Introduce new `SSLContext` API & escalate deprecations. (#3319)"
+      },
+      {
+        "base": "92e9dfb3997ab07353bbe98f9b5a6e69b7701c70",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "pytest"
+          }
+        ],
+        "head": "db9072f998b53ff66d50778bf5edee8e2cc8ede1",
+        "repo": "https://github.com/encode/httpx.git",
+        "subject": "Add URL parsing tests from WHATWG (#3188)"
+      },
+      {
+        "base": "e4c5d0293470f107bc0b4886f484a48c1315d091",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "pydantic"
+          },
+          {
+            "decision": "pass",
+            "name": "pytest"
+          }
+        ],
+        "head": "2f6d43c6ecc9a392ea0fcb14c0b063e76b448b62",
+        "repo": "https://github.com/fastapi/fastapi.git",
+        "subject": "\u2728 Add support for optional query, header, and cookie parameter models (#16584)"
+      },
+      {
+        "base": "68cc4cbb2e0600841b0d6bdd1cc29038b54a00e6",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "pydantic"
+          },
+          {
+            "decision": "pass",
+            "name": "pytest"
+          }
+        ],
+        "head": "86274cc0acc9fc6d608e251c874105c94634bddf",
+        "repo": "https://github.com/fastapi/fastapi.git",
+        "subject": "\u2728 Add support for optional unions of form models (#16586)"
+      },
+      {
+        "base": "ce6ee83e5411b98582e996e47edf7870418a68f4",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "pydantic_core"
+          }
+        ],
+        "head": "91a335ce946c7a832da973f2acf69b8876594216",
+        "repo": "https://github.com/fastapi/fastapi.git",
+        "subject": "\ud83d\udc1b Apply each parameter model's `extra` configuration to sibling fields (#16594)"
+      },
+      {
+        "base": "addd0778e996cf886972b8024113d79f8d0a3580",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "pydantic"
+          },
+          {
+            "decision": "pass",
+            "name": "pytest"
+          }
+        ],
+        "head": "e42ac0a13459086f42d96eab13748303bcfa78e7",
+        "repo": "https://github.com/fastapi/fastapi.git",
+        "subject": "\u2728 Add support for combining unions of form models (#16596)"
+      },
+      {
+        "base": "69ddc2badf9da1123bba4d360225ae6b085985f6",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "pytest"
+          }
+        ],
+        "head": "f02ef4900bacc28942a051b95b9719c5002a7858",
+        "repo": "https://github.com/fastapi/fastapi.git",
+        "subject": "\ud83d\udc1b Restore default handling for omitted boolean form fields (#16605)"
+      },
+      {
+        "base": "7fec3bcbdbca5b29b21ac4777e3fb341d8a7e4e1",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "pytest"
+          },
+          {
+            "decision": "pass",
+            "name": "sqlalchemy"
+          }
+        ],
+        "head": "01960be28ed852c5c118c5be163c91bb72f3cd91",
+        "repo": "https://github.com/fastapi/sqlmodel.git",
+        "subject": "\ud83d\udc1b Fix SQLAlchemy type handling in `Field` (#2095)"
+      },
+      {
+        "base": "43353a45817b30a51b7904d0b30e500bbbcef7ca",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "pydantic"
+          }
+        ],
+        "head": "073023d84546490bd5dce86ce94fe6e8914db7c2",
+        "repo": "https://github.com/fastapi/sqlmodel.git",
+        "subject": "\ud83c\udff7\ufe0f Allow `Discriminator` type for `discriminator` parameter in `Field` (#1729)"
+      },
+      {
+        "base": "a99fbcd820ffb339531408d0bd18c29f366cee13",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "aiosqlite"
+          },
+          {
+            "decision": "pass",
+            "name": "pytest"
+          },
+          {
+            "decision": "pass",
+            "name": "typing_extensions"
+          }
+        ],
+        "head": "7d1eba721e5e48b8bf9877007dbe803fd07539ba",
+        "repo": "https://github.com/fastapi/sqlmodel.git",
+        "subject": "\u2728 Add support for SQLAlchemy 2.1 (#2112)"
+      },
+      {
+        "base": "72bca1e492071cbd152d94fc5770f78130538af7",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "pymysql"
+          },
+          {
+            "decision": "pass",
+            "name": "sqlalchemy"
+          },
+          {
+            "decision": "pass",
+            "name": "dirty_equals"
+          }
+        ],
+        "head": "8da92357f55f1295c4e39072263106f5122ee34d",
+        "repo": "https://github.com/fastapi/sqlmodel.git",
+        "subject": "\u2728 Add direct support for PostgreSQL, MySQL, and MariaDB, include in CI tests (#2103)"
+      },
+      {
+        "base": "ff86856e04967945646b60293c43af1ba1b4188e",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "pydantic"
+          },
+          {
+            "decision": "pass",
+            "name": "sqlalchemy"
+          },
+          {
+            "decision": "pass",
+            "name": "alembic"
+          },
+          {
+            "decision": "pass",
+            "name": "pytest"
+          }
+        ],
+        "head": "cc998aaa45f9d3bb76dbe20438c3ce2d449a0c73",
+        "repo": "https://github.com/fastapi/sqlmodel.git",
+        "subject": "\u2728 Use UTC datetimes by default (#2099)"
+      },
+      {
+        "base": "7df2f82305f20f1611a9668b38d26933b648d807",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "pytest"
+          }
+        ],
+        "head": "333c28d79cd982990ee98eef61ec20ab1a4f38ba",
+        "repo": "https://github.com/pallets/click.git",
+        "subject": "Mark clearly functions private status. Deprecated Python 2 utilities. (#3695)"
+      },
+      {
+        "base": "6aabf099bfdd4c1e75fe8d0e0d4241372b988ab1",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "typing_extensions"
+          }
+        ],
+        "head": "3cbaa76b6014be7427d1ab06b4af40f01e7c278e",
+        "repo": "https://github.com/pallets/click.git",
+        "subject": "Merge stable into main (#3876)"
+      },
+      {
+        "base": "cfa01eeb7894a408af70b29d28c0b24f8680f9fb",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "typing_extensions"
+          }
+        ],
+        "head": "5e906a8afb67242dffdd91404dbf31f469054b15",
+        "repo": "https://github.com/pallets/click.git",
+        "subject": "`click.prompt` typing clarifications / improvements (#3407)"
+      },
+      {
+        "base": "36baa15ff831b939a22bc527cd76ce653ef6f66d",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "pytest"
+          }
+        ],
+        "head": "6aabf099bfdd4c1e75fe8d0e0d4241372b988ab1",
+        "repo": "https://github.com/pallets/click.git",
+        "subject": "Stable (#3851)"
+      },
+      {
+        "base": "2103e157683c5e4cadc8ee1838df526a54bde9a4",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "typing_extensions"
+          }
+        ],
+        "head": "e1fd5946ab26aaf372009eaff1acf947140b40fb",
+        "repo": "https://github.com/pallets/click.git",
+        "subject": "Add support of `pathlib.Path` to `edit` (#3781)"
+      },
+      {
+        "base": "330123258e8c3dc391cbe55ab1ed94891ca83af3",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "typing_extensions"
+          }
+        ],
+        "head": "adf363679da2d9a5ddc564bb2da563c7ca083916",
+        "repo": "https://github.com/pallets/flask.git",
+        "subject": "merge app and request context (#5812)"
+      },
+      {
+        "base": "f61172b8dd3f962d33f25c50b2f5405e90ceffa5",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "roman-numerals-py"
+          }
+        ],
+        "head": "b78b5a210bde49e7e04b62a2a4f453ca10e0048c",
+        "repo": "https://github.com/pallets/flask.git",
+        "subject": "Merge branch 'stable'"
+      },
+      {
+        "base": "11c45eeba3b5bcf06b84f4e864862f1019a3faa3",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "markupsafe"
+          },
+          {
+            "decision": "pass",
+            "name": "ruff"
+          },
+          {
+            "decision": "pass",
+            "name": "tox"
+          },
+          {
+            "decision": "pass",
+            "name": "tox-uv"
+          },
+          {
+            "decision": "pass",
+            "name": "pallets-sphinx-themes"
+          },
+          {
+            "decision": "pass",
+            "name": "sphinx"
+          },
+          {
+            "decision": "pass",
+            "name": "sphinx-tabs"
+          },
+          {
+            "decision": "pass",
+            "name": "sphinxcontrib-log-cabinet"
+          },
+          {
+            "decision": "pass",
+            "name": "sphinx-autobuild"
+          },
+          {
+            "decision": "pass",
+            "name": "gha-update"
+          },
+          {
+            "decision": "pass",
+            "name": "pre-commit"
+          },
+          {
+            "decision": "pass",
+            "name": "pre-commit-uv"
+          },
+          {
+            "decision": "pass",
+            "name": "greenlet"
+          },
+          {
+            "decision": "pass",
+            "name": "pytest"
+          },
+          {
+            "decision": "pass",
+            "name": "cryptography"
+          },
+          {
+            "decision": "pass",
+            "name": "mypy"
+          },
+          {
+            "decision": "pass",
+            "name": "pyright"
+          },
+          {
+            "decision": "pass",
+            "name": "types-contextvars"
+          },
+          {
+            "decision": "pass",
+            "name": "types-dataclasses"
+          }
+        ],
+        "head": "bc143499cf1137a271a7cf75bdd3e16e43ede2f0",
+        "repo": "https://github.com/pallets/flask.git",
+        "subject": "Merge branch 'stable'"
+      },
+      {
+        "base": "2fec0b206c6e83ea813ab26597e15c96fab08be7",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "sphinx-notfound-page"
+          }
+        ],
+        "head": "bca18041b055102857a7e8a12f8694fddda9571b",
+        "repo": "https://github.com/pallets/flask.git",
+        "subject": "Merge branch '3.0.x'"
+      },
+      {
+        "base": "4e6384da325f5c328526b998d199c6f957f90ea8",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "importlib-metadata"
+          },
+          {
+            "decision": "pass",
+            "name": "tomli"
+          },
+          {
+            "decision": "pass",
+            "name": "zipp"
+          },
+          {
+            "decision": "pass",
+            "name": "exceptiongroup"
+          },
+          {
+            "decision": "pass",
+            "name": "greenlet"
+          },
+          {
+            "decision": "pass",
+            "name": "pytz"
+          }
+        ],
+        "head": "eeb5f95a0f24abc5207159cc922cdda8d779f4f6",
+        "repo": "https://github.com/pallets/flask.git",
+        "subject": "Merge branch '3.0.x'"
+      },
+      {
+        "base": "30664d8f17b29658aa72e44a1bfe23eede12db99",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "pytest"
+          }
+        ],
+        "head": "315a796590d112d15cf74b941ca83b53bb331068",
+        "repo": "https://github.com/psf/black.git",
+        "subject": "Fix GitHub Action crash on dependency-group includes (#5479)"
+      },
+      {
+        "base": "77980472e82b5e733a48a3bd08c59beb6a9dba65",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "a"
+          },
+          {
+            "decision": "pass",
+            "name": "c"
+          },
+          {
+            "decision": "pass",
+            "name": "d"
+          },
+          {
+            "decision": "pass",
+            "name": "k"
+          },
+          {
+            "decision": "pass",
+            "name": "m"
+          }
+        ],
+        "head": "9888d14643ac414d7a24bc3e082af1c7cbe06efa",
+        "repo": "https://github.com/psf/black.git",
+        "subject": "Fix crash on `# fmt: skip` after a multi-line `from` import (#5584)"
+      },
+      {
+        "base": "fe241ccc443acbabbd75c8240d2fbc06ba4e52d6",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "pytest"
+          }
+        ],
+        "head": "ac1f71563aeccf73cf13ece00f231d9d6c66a514",
+        "repo": "https://github.com/psf/black.git",
+        "subject": "Action: validate required-version better (#5510)"
+      },
+      {
+        "base": "158aa3c0af7d6c1fd189aa58e45b671bb9a4186b",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "pytest"
+          }
+        ],
+        "head": "b7f9e86ea23d22c9d27ae964e07d1855ee91069f",
+        "repo": "https://github.com/psf/black.git",
+        "subject": "Avoid OSError: AF_UNIX path too long for multiprocessing manager when running --diff (#2105) (#5513)"
+      },
+      {
+        "base": "0a6396ba56d2d7fac4ce4fef5ea15c97e82b299b",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "click"
+          }
+        ],
+        "head": "d7587ce9f52f36eb41bc505e529540fd8cbdcd3e",
+        "repo": "https://github.com/psf/black.git",
+        "subject": "Validate BLACK_NUM_WORKERS values (#5211)"
+      },
+      {
+        "base": "389eea58dfb2f2ee096421a812e3af29c0298951",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "trustme"
+          }
+        ],
+        "head": "4443b1a847b190010c2972a658924b98b5db6360",
+        "repo": "https://github.com/psf/requests.git",
+        "subject": "Fix unintended test extra (#7306)"
+      },
+      {
+        "base": "8f6cda9969f4a98c45ea2922f6bcbefc02256202",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "pyright"
+          },
+          {
+            "decision": "pass",
+            "name": "typing_extensions"
+          }
+        ],
+        "head": "561e4b6889f53584c39a67f8794c53a414f68481",
+        "repo": "https://github.com/psf/requests.git",
+        "subject": "Add inline types to Requests (#7272)"
+      },
+      {
+        "base": "15e1f17bb6f3f978787dd23da0268388148bc3d5",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "urllib3"
+          }
+        ],
+        "head": "79b74ef704dc0d804937c0d015c5e9c3b02b79bd",
+        "repo": "https://github.com/psf/requests.git",
+        "subject": "Merge pull request #6757 from nateprewitt/urllib-1.x-tests"
+      },
+      {
+        "base": "a389aaad453ac4c0b9f8af4a72429de164810654",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "setuptools"
+          },
+          {
+            "decision": "pass",
+            "name": "charset_normalizer"
+          },
+          {
+            "decision": "pass",
+            "name": "idna"
+          },
+          {
+            "decision": "pass",
+            "name": "urllib3"
+          },
+          {
+            "decision": "pass",
+            "name": "certifi"
+          },
+          {
+            "decision": "pass",
+            "name": "PySocks"
+          },
+          {
+            "decision": "pass",
+            "name": "chardet"
+          },
+          {
+            "decision": "pass",
+            "name": "pytest-httpbin"
+          },
+          {
+            "decision": "pass",
+            "name": "pytest-cov"
+          },
+          {
+            "decision": "pass",
+            "name": "pytest-mock"
+          },
+          {
+            "decision": "pass",
+            "name": "pytest-xdist"
+          },
+          {
+            "decision": "pass",
+            "name": "pytest"
+          }
+        ],
+        "head": "cb2c800518423e0042789ab09f8f6e719428a444",
+        "repo": "https://github.com/psf/requests.git",
+        "subject": "Migrate build system to PEP 517 (#7012)"
+      },
+      {
+        "base": "3be097d450ee4ca8a2f9c1a3a58eb61ed19936b0",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "cryptography"
+          },
+          {
+            "decision": "pass",
+            "name": "PyOpenSSL"
+          },
+          {
+            "decision": "pass",
+            "name": "chardet"
+          }
+        ],
+        "head": "e50e5945294f79ee9ab4ec69de24d14f9b26a7ae",
+        "repo": "https://github.com/psf/requests.git",
+        "subject": "Improve static typing of 3rd party imports  (#7496)"
+      },
+      {
+        "base": "2a58e7cb614787e532957562c2b6f9cc4a1f935b",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "pytest"
+          }
+        ],
+        "head": "1672be5360805c06307c4ba91b73a65860da4834",
+        "repo": "https://github.com/pydantic/pydantic.git",
+        "subject": "Add fresh-interpreter library startup benchmarks (#14112)"
+      },
+      {
+        "base": "2a62f7a904734206cb029b94e25b9b968158aa63",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "pytest"
+          },
+          {
+            "decision": "pass",
+            "name": "pytest_benchmark"
+          }
+        ],
+        "head": "2a58e7cb614787e532957562c2b6f9cc4a1f935b",
+        "repo": "https://github.com/pydantic/pydantic.git",
+        "subject": "Benchmark nested JSON model validation and fallback (#14128)"
+      },
+      {
+        "base": "91c44cd1bfc8c7cb909cefa8395e0a720957f1d1",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "griffe"
+          }
+        ],
+        "head": "69e9ca4658a6471cadae5216b44ebfb4fde040f3",
+        "repo": "https://github.com/pydantic/pydantic.git",
+        "subject": "Remove functionality deprecated during the 2.x timeline (#14158)"
+      },
+      {
+        "base": "bb7e4d733632e9bcb0312c53da05efb7a1d71cb3",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "pytest"
+          },
+          {
+            "decision": "pass",
+            "name": "pydantic_core"
+          }
+        ],
+        "head": "779361fe0c4ed5be8ea31e136b4353ae2e5fa673",
+        "repo": "https://github.com/pydantic/pydantic.git",
+        "subject": "Improve performance of `model_fields_set` (#12924)"
+      },
+      {
+        "base": "27caa1e4dea73c6cd50e48cbbba315d817c1cf0a",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "pytest"
+          },
+          {
+            "decision": "pass",
+            "name": "pytest_benchmark"
+          }
+        ],
+        "head": "dd0c36a4be235522e34659ba372c59b43b55f33e",
+        "repo": "https://github.com/pydantic/pydantic.git",
+        "subject": "Add JSON model streaming fallback benchmarks (#14132)"
+      },
+      {
+        "base": "ef052d0bc481af97afb3fbd2aae24d8abce08604",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "typing_extensions"
+          }
+        ],
+        "head": "344c23787cdb3431dcc441b8b63ee9950f04b921",
+        "repo": "https://github.com/pytest-dev/pytest.git",
+        "subject": "Accept type expressions in Parser.addini(type=...) (#14751)"
+      },
+      {
+        "base": "6a47389c7813ec7ed395c0279c4b7685fde9f95a",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "pytest-asyncio"
+          }
+        ],
+        "head": "3fe80c714fe18f2926b42997b55b05e6b2e90ab0",
+        "repo": "https://github.com/pytest-dev/pytest.git",
+        "subject": "Merge pull request #13918 from bluetech/restore-pytest-asyncio"
+      },
+      {
+        "base": "b2af87e54026af746e49664becb33e6823242bfc",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "typing_extensions"
+          }
+        ],
+        "head": "4253f98a78e44ff693007edc439885d6f656eed6",
+        "repo": "https://github.com/pytest-dev/pytest.git",
+        "subject": "Merge pull request #13877 from bluetech/deprecate-parametrize-iterators"
+      },
+      {
+        "base": "5eaad82074c08b63ee6667d9760d795ea16e73f9",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "pluggy"
+          },
+          {
+            "decision": "pass",
+            "name": "typing_extensions"
+          }
+        ],
+        "head": "79392133b63bc79efde860eb94901108b88cfcd6",
+        "repo": "https://github.com/pytest-dev/pytest.git",
+        "subject": "Integrate pytest-subtests (#13738)"
+      },
+      {
+        "base": "d07c5d4e3956cb6b8ff7f9f49c0bc4d819a15349",
+        "candidates": [
+          {
+            "decision": "pass",
+            "name": "pytest"
+          }
+        ],
+        "head": "849fbda3ce87e3829b30d005979bee59928c01ff",
+        "repo": "https://github.com/pytest-dev/pytest.git",
+        "subject": "Merge pull request #14122 from RonnyPfannschmidt/enable-uv"
+      }
+    ],
+    "repositories": [
+      {
+        "inspected_commits": 234,
+        "inspection_limit_reached": false,
+        "repo": "https://github.com/Textualize/rich.git"
+      },
+      {
+        "inspected_commits": 197,
+        "inspection_limit_reached": false,
+        "repo": "https://github.com/encode/httpx.git"
+      },
+      {
+        "inspected_commits": 32,
+        "inspection_limit_reached": false,
+        "repo": "https://github.com/fastapi/fastapi.git"
+      },
+      {
+        "inspected_commits": 41,
+        "inspection_limit_reached": false,
+        "repo": "https://github.com/fastapi/sqlmodel.git"
+      },
+      {
+        "inspected_commits": 23,
+        "inspection_limit_reached": false,
+        "repo": "https://github.com/pallets/click.git"
+      },
+      {
+        "inspected_commits": 97,
+        "inspection_limit_reached": false,
+        "repo": "https://github.com/pallets/flask.git"
+      },
+      {
+        "inspected_commits": 212,
+        "inspection_limit_reached": false,
+        "repo": "https://github.com/psf/black.git"
+      },
+      {
+        "inspected_commits": 154,
+        "inspection_limit_reached": false,
+        "repo": "https://github.com/psf/requests.git"
+      },
+      {
+        "inspected_commits": 21,
+        "inspection_limit_reached": false,
+        "repo": "https://github.com/pydantic/pydantic.git"
+      },
+      {
+        "inspected_commits": 497,
+        "inspection_limit_reached": false,
+        "repo": "https://github.com/pytest-dev/pytest.git"
+      }
+    ],
+    "warn_or_block_candidate_count": 0,
+    "warn_or_block_candidate_false_positive_rate": 0.0,
+    "warn_or_block_false_positive_rate": 0.0,
+    "warn_or_block_pr_count": 0
+  },
+  "recorded_at": "2026-11-27T10:41:03.865747Z",
+  "sha256": {
+    "config": "1566184db1f6b5096766cad6514aa571cb82b2bc29a181a5c543c7f57a0d3a4b",
+    "labels": "54e12a0e8867cdf7deaec8d6f2514d349ec5897650b188c48fe51eca4f2a9d62",
+    "registry": "3c19880c4e379414dbbcf568750b47b8473640f347cb1ec42776710da5ce63f4"
+  },
+  "tool_version": "0.1.0"
+}

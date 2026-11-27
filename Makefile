@@ -1,4 +1,4 @@
-.PHONY: setup lint format format-check test check skills-check
+.PHONY: setup lint format format-check test check skills-check eval
 
 setup:
 	uv sync
@@ -18,5 +18,8 @@ test:
 
 skills-check:
 	uv run python scripts/sync_agent_skills.py --check
+
+eval:
+	uv run python -m evals.evaluate $(if $(wildcard evals/data/real_prs.jsonl),--real-prs evals/data/real_prs.jsonl --real-prs-registry evals/data/real_prs_registry.jsonl.gz)
 
 check: lint format-check test skills-check

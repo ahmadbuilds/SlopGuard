@@ -5,6 +5,7 @@ from __future__ import annotations
 import errno
 import http.client
 import io
+import math
 import queue
 import select
 import socket
@@ -18,6 +19,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from importlib.metadata import PackageNotFoundError, metadata
+from typing import Protocol
 from urllib.parse import urlsplit
 
 from packaging.utils import InvalidName, canonicalize_name
@@ -85,6 +87,126 @@ class RegistryLookupResult:
         if self.status == "not_found":
             return False
         return None
+
+    def to_dict(self) -> dict[str, object]:
+        """Return the stable JSON-compatible recording shape."""
+
+        return {
+            "normalized_name": self.normalized_name,
+            "status": self.status,
+            "metadata": deepcopy(self.metadata),
+            "latency_ms": self.latency_ms,
+            "attempts": self.attempts,
+            "http_status": self.http_status,
+            "retry_after": self.retry_after,
+            "rate_limit_remaining": self.rate_limit_remaining,
+            "error": self.error,
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, object]) -> RegistryLookupResult:
+        """Parse and validate a lookup result from a JSON object."""
+
+        expected_keys = {
+            "normalized_name",
+            "status",
+            "metadata",
+            "latency_ms",
+            "attempts",
+            "http_status",
+            "retry_after",
+            "rate_limit_remaining",
+            "error",
+        }
+        if set(value) != expected_keys:
+            raise ValueError("Registry lookup object has missing or unknown fields.")
+        normalized_name = value["normalized_name"]
+        status = value["status"]
+        latency_ms = value["latency_ms"]
+        attempts = value["attempts"]
+        http_status = value["http_status"]
+        metadata_value = value["metadata"]
+        if not isinstance(normalized_name, str) or not normalized_name:
+            raise ValueError("Registry lookup normalized_name must be a non-empty string.")
+        if not isinstance(status, str) or status not in {
+            "exists",
+            "not_found",
+            "transient_error",
+            "malformed_response",
+            "invalid_name",
+        }:
+            raise ValueError("Registry lookup status is invalid.")
+        if (
+            isinstance(latency_ms, bool)
+            or not isinstance(latency_ms, (float, int))
+            or not math.isfinite(latency_ms)
+            or latency_ms < 0
+        ):
+            raise ValueError("Registry lookup latency_ms must be a non-negative number.")
+        if isinstance(attempts, bool) or not isinstance(attempts, int) or attempts < 1:
+            raise ValueError("Registry lookup attempts must be a positive integer.")
+        if http_status is not None and (
+            isinstance(http_status, bool) or not isinstance(http_status, int)
+        ):
+            raise ValueError("Registry lookup http_status must be an integer or null.")
+        for key in ("retry_after", "rate_limit_remaining", "error"):
+            if value[key] is not None and not isinstance(value[key], str):
+                raise ValueError(f"Registry lookup {key} must be a string or null.")
+        metadata_value = _validate_recorded_metadata(metadata_value)
+        return cls(
+            normalized_name=normalized_name,
+            status=status,
+            metadata=metadata_value,
+            latency_ms=float(latency_ms),
+            attempts=attempts,
+            http_status=http_status,
+            retry_after=value["retry_after"],
+            rate_limit_remaining=value["rate_limit_remaining"],
+            error=value["error"],
+        )
+
+
+class RegistryClient(Protocol):
+    """Lookup boundary shared by live, recording, and replay registry clients."""
+
+    def lookup(self, name: str) -> RegistryLookupResult:
+        """Return recorded or live registry evidence for a normalized name."""
+
+    def with_settings(self, settings: RegistrySettings) -> RegistryClient:
+        """Return a client using scan-specific network bounds."""
+
+
+def _validate_recorded_metadata(value: object) -> RegistryMetadata | None:
+    if value is None:
+        return None
+    keys = {
+        "first_release_at",
+        "release_count",
+        "latest_release_at",
+        "project_urls",
+        "maintainer_hints",
+        "source_hints",
+    }
+    if not isinstance(value, dict) or set(value) != keys:
+        raise ValueError("Registry lookup metadata has missing or unknown fields.")
+    for key in ("first_release_at", "latest_release_at"):
+        if value[key] is not None and not isinstance(value[key], str):
+            raise ValueError(f"Registry lookup metadata {key} must be a string or null.")
+    release_count = value["release_count"]
+    if release_count is not None and (
+        isinstance(release_count, bool) or not isinstance(release_count, int) or release_count < 0
+    ):
+        raise ValueError("Registry lookup metadata release_count must be a non-negative integer.")
+    project_urls = value["project_urls"]
+    if not isinstance(project_urls, dict) or any(
+        not isinstance(key, str) or not isinstance(url, str) for key, url in project_urls.items()
+    ):
+        raise ValueError("Registry lookup metadata project_urls must map strings to strings.")
+    for key in ("maintainer_hints", "source_hints"):
+        hints = value[key]
+        if not isinstance(hints, list) or any(not isinstance(item, str) for item in hints):
+            raise ValueError(f"Registry lookup metadata {key} must be a string array.")
+    return deepcopy(value)  # type: ignore[return-value]
 
 
 Transport = Callable[[str, float, int], HTTPResponse]

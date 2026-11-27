@@ -1,0 +1,16 @@
+{
+  "repos": [
+    {"url": "https://github.com/psf/requests.git", "default_branch": "main"},
+    {"url": "https://github.com/pallets/flask.git", "default_branch": "main"},
+    {"url": "https://github.com/encode/httpx.git", "default_branch": "master"},
+    {"url": "https://github.com/fastapi/fastapi.git", "default_branch": "master"},
+    {"url": "https://github.com/pydantic/pydantic.git", "default_branch": "main"},
+    {"url": "https://github.com/psf/black.git", "default_branch": "main"},
+    {"url": "https://github.com/pytest-dev/pytest.git", "default_branch": "main"},
+    {"url": "https://github.com/Textualize/rich.git", "default_branch": "main"},
+    {"url": "https://github.com/fastapi/sqlmodel.git", "default_branch": "main"},
+    {"url": "https://github.com/pallets/click.git", "default_branch": "main"}
+  ],
+  "per_repo": 5,
+  "cutoff_date": "2026-11-01"
+}

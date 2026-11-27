@@ -67,6 +67,8 @@ merge. It reads registry metadata only. Information Security term project, FAST-
 - `src/slopguard/config.py`: immutable validated configuration and discovery.
 - `src/slopguard/scoring.py`: explainable risk contributions and policy decisions.
 - `examples/slopguard.toml`: the configuration users copy.
+- `evals/`: isolated label builders, manual recording/collection commands, and offline scoring; never
+  import this directory from the SlopGuard package or add it to the runtime wheel.
 - `.github/workflows/ci.yml`: lint and tests on every PR and push to `main`.
   `.github/workflows/release.yml`: on a `v*` tag, reruns the checks, publishes a GitHub Release
   and moves the major tag (`v1`) that users reference as `ahmadbuilds/SlopGuard@v1`.
@@ -76,7 +78,6 @@ merge. It reads registry metadata only. Information Security term project, FAST-
 ## Planned modules (each lands with its Linear issue)
 
 - `src/slopguard/report.py`: check summary, annotations and PR comment (SG-07).
-- `evals/`: labeled evaluation set and metrics script; never imported by the package (SG-08).
 
 ## Where to find context
 
