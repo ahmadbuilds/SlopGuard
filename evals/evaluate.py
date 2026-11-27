@@ -41,7 +41,7 @@ from .constants import (
     MAX_REPORT_FIELD_CHARACTERS,
 )
 from .io import read_jsonl_objects, write_jsonl
-from .metrics import evaluation_metrics
+from .metrics import evaluation_metrics, format_metric
 from .replay import ReplayClient
 from .schema import Label, load_labels
 
@@ -686,10 +686,10 @@ def _render_report(
                     str(confusion["fp"]),
                     str(confusion["tn"]),
                     str(confusion["fn"]),
-                    _format_metric(mode["precision"]),
-                    _format_metric(mode["recall"]),
-                    _format_metric(mode["false_positive_rate"]),
-                    _format_metric(mode["f1"]),
+                    format_metric(mode["precision"]),
+                    format_metric(mode["recall"]),
+                    format_metric(mode["false_positive_rate"]),
+                    format_metric(mode["f1"]),
                 )
             )
             + " |"
@@ -726,10 +726,10 @@ def _render_report(
                         str(confusion["fp"]),
                         str(confusion["tn"]),
                         str(confusion["fn"]),
-                        _format_metric(category_result["precision"]),
-                        _format_metric(category_result["recall"]),
-                        _format_metric(category_result["false_positive_rate"]),
-                        _format_metric(category_result["f1"]),
+                        format_metric(category_result["precision"]),
+                        format_metric(category_result["recall"]),
+                        format_metric(category_result["false_positive_rate"]),
+                        format_metric(category_result["f1"]),
                     )
                 )
                 + " |"
@@ -747,7 +747,7 @@ def _render_report(
             "",
             f"Checked {hallucinated['checked_count']} names; "
             f"{hallucinated['not_found_count']} did not exist on PyPI "
-            f"(hallucination rate {_format_metric(hallucinated['hallucination_rate'])}); "
+            f"(hallucination rate {format_metric(hallucinated['hallucination_rate'])}); "
             f"SlopGuard flagged {hallucinated['flagged_not_found_warn_or_block_count']} "
             "not-found names (warn or block).",
             f"{hallucinated['inconclusive_count']} additional lookups were inconclusive and are "
@@ -762,7 +762,7 @@ def _render_report(
         lines.append(
             f"| {_markdown_text(model)} | {model_metrics['checked_count']} | "
             f"{model_metrics['not_found_count']} | "
-            f"{_format_metric(model_metrics['hallucination_rate'])} | "
+            f"{format_metric(model_metrics['hallucination_rate'])} | "
             f"{model_metrics['flagged_not_found_warn_or_block_count']} | "
             f"{model_metrics['flagged_not_found_block_count']} |"
         )
@@ -789,8 +789,8 @@ def _render_report(
         confusion = cast(dict[str, int], mode["confusion"])
         lines.append(
             f"| {title} | {confusion['tp']} | {confusion['fp']} | {confusion['tn']} | "
-            f"{confusion['fn']} | {_format_metric(mode['precision'])} | "
-            f"{_format_metric(mode['recall'])} | {_format_metric(mode['false_positive_rate'])} |"
+            f"{confusion['fn']} | {format_metric(mode['precision'])} | "
+            f"{format_metric(mode['recall'])} | {format_metric(mode['false_positive_rate'])} |"
         )
     if real_pr_metrics is not None:
         selection = real_pr_metrics.get("selection_parameters")
@@ -820,13 +820,13 @@ def _render_report(
                 f"Candidate-level FPR (flagged new dependencies / all new dependencies): "
                 f"{real_pr_metrics['warn_or_block_candidate_count']}/"
                 f"{real_pr_metrics['candidate_count']} = "
-                f"{_format_metric(real_pr_metrics['warn_or_block_candidate_false_positive_rate'])}; "
+                f"{format_metric(real_pr_metrics['warn_or_block_candidate_false_positive_rate'])}; "
                 f"block-only candidate rate: "
-                f"{_format_metric(real_pr_metrics['block_candidate_false_positive_rate'])}.",
+                f"{format_metric(real_pr_metrics['block_candidate_false_positive_rate'])}.",
                 f"PR-level warn/block rate: {real_pr_metrics['warn_or_block_pr_count']}/"
                 f"{real_pr_metrics['pr_count']} = "
-                f"{_format_metric(real_pr_metrics['warn_or_block_false_positive_rate'])}; "
-                f"block-only PR rate: {_format_metric(real_pr_metrics['block_false_positive_rate'])}.",
+                f"{format_metric(real_pr_metrics['warn_or_block_false_positive_rate'])}; "
+                f"block-only PR rate: {format_metric(real_pr_metrics['block_false_positive_rate'])}.",
                 "",
                 "### Repository inspection",
                 "",
@@ -885,10 +885,6 @@ def _render_report(
         )
     lines.extend(("", "## Limitations", "", _LIMITATIONS))
     return "\n".join(lines) + "\n"
-
-
-def _format_metric(value: object) -> str:
-    return "n/a" if value is None else f"{float(value):.4f}"
 
 
 def _markdown_text(value: object) -> str:
