@@ -22,6 +22,8 @@ from .scan import run_scan
 MAX_EVENT_BYTES = 1_000_000
 MAX_SUMMARY_CHARACTERS = 20_000
 MAX_SUMMARY_FIELD_CHARACTERS = 1_000
+MAX_UNVERIFIED_SUMMARY_ITEMS = 10
+MAX_SUMMARY_NAME_CHARACTERS = 120
 MAX_ERROR_CHARACTERS = 500
 
 
@@ -188,10 +190,33 @@ def _summary(report: dict[str, object], report_path: str | None) -> str:
         "**Results:** "
         + ", ".join(f"{key}: {by_decision[key]}" for key in ("pass", "warn", "block")),
     ]
+    unverified = [item for item in report["results"] if item["registry_exists"] is None]
+    if unverified:
+        lines.extend(("", f"**Unverified registry results:** {len(unverified)}"))
     if report["config_changed"]:
         lines.extend(("", "**Configuration changed in the pull request.**"))
+    if unverified:
+        lines.extend(("", "## Unverified package metadata"))
+        for item in unverified[:MAX_UNVERIFIED_SUMMARY_ITEMS]:
+            requested_name = str(item["requested_name"])
+            if len(requested_name) > MAX_SUMMARY_NAME_CHARACTERS:
+                requested_name = requested_name[: MAX_SUMMARY_NAME_CHARACTERS - 1] + "…"
+            name = _markdown(requested_name)
+            status = _markdown(item["registry_status"])
+            decision = _markdown(item["decision"])
+            lines.append(
+                f"- {name}: PyPI status `{status}`; policy decision `{decision}`. "
+                "This package remains unverified; this is not evidence that the package does not exist."
+            )
+        omitted = len(unverified) - MAX_UNVERIFIED_SUMMARY_ITEMS
+        if omitted > 0:
+            lines.append(f"- {omitted} additional unverified package(s) omitted from this summary.")
     for decision, heading in (("block", "Blocked packages"), ("warn", "Warned packages")):
-        selected = [item for item in report["results"] if item["decision"] == decision]
+        selected = [
+            item
+            for item in report["results"]
+            if item["decision"] == decision and item["registry_exists"] is not None
+        ]
         if selected:
             lines.extend(("", f"## {heading}"))
             for item in selected:
