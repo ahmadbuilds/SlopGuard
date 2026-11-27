@@ -129,3 +129,9 @@ def test_lookup_parser_metadata_matches_fixture_sample() -> None:
     )
 
     assert parse_project_response(FIXTURE) == expected["registry_metadata"]
+
+
+def test_registry_lookup_result_record_round_trips() -> None:
+    result = _lookup(HTTPResponse(200, FIXTURE, {}))
+
+    assert type(result).from_dict(result.to_dict()) == result
