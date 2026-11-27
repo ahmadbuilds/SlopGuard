@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "slopguard"
-version = "0.1.0"
+version = "1.0.0"
 description = "A GitHub Action that detects suspicious Python dependencies before they merge."
 readme = "README.md"
 license = { text = "MIT" }
