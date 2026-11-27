@@ -21,6 +21,8 @@ jobs:
     needs: checks
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # The "release" environment requires a maintainer's approval before a tag can publish.
+    environment: release
     permissions:
       contents: write
     steps:
