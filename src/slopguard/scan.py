@@ -18,7 +18,7 @@ from .extractor import (
     local_test_modules_by_directory,
 )
 from .git import GitRepository, GitWarning
-from .registry import PyPIClient, RegistryLookupResult
+from .registry import RegistryClient, RegistryLookupResult
 from .registry_result import apply_registry_lookup
 from .scoring import score_result
 from .similarity import PopularPackageIndex, apply_similarity, find_lookalikes
@@ -40,7 +40,7 @@ def run_scan(
     repository: str,
     base: str,
     head: str,
-    client: PyPIClient,
+    client: RegistryClient,
     now: datetime,
     config_path: str | None = None,
 ) -> ScanReport:
@@ -91,24 +91,36 @@ def run_scan(
     warnings.extend(_from_extraction_warning(item) for item in extracted.warnings)
 
     candidates = tuple(sorted(extracted.candidates, key=lambda item: item["normalized_name"]))
-    lookup_client = (
-        client.with_settings(base_effective["config"].registry)
-        if isinstance(client, PyPIClient)
-        else client
-    )
+    lookup_client = client.with_settings(base_effective["config"].registry)
     lookup_results = _lookup_candidates(candidates, lookup_client, base_effective["config"])
     index = PopularPackageIndex.load()
     results: list[DependencyResult] = []
     for candidate in candidates:
-        enriched = apply_registry_lookup(candidate, lookup_results[candidate["normalized_name"]])
-        matches = find_lookalikes(
-            enriched["normalized_name"], index, base_effective["config"].similarity
-        )
-        compared = apply_similarity(enriched, matches)
-        scored = score_result(compared, base_effective["config"], now=now)
-        if "decision" not in scored:
-            raise RuntimeError("Scoring returned a result without a decision.")
-        results.append(scored)
+        try:
+            result = score_candidate(
+                candidate,
+                lookup_results[candidate["normalized_name"]],
+                config=base_effective["config"],
+                index=index,
+                now=now,
+            )
+        except ValueError as error:
+            locations = candidate.get("source_locations", [])
+            location = (
+                locations[0]
+                if isinstance(locations, list) and locations and isinstance(locations[0], dict)
+                else {"file": "", "line": None}
+            )
+            warnings.append(
+                _warning(
+                    str(location.get("file", "")),
+                    location.get("line") if isinstance(location.get("line"), int) else None,
+                    f"Dependency candidate {candidate['requested_name']!r} could not be evaluated: {error}",
+                    "candidate_error",
+                )
+            )
+            continue
+        results.append(result)
 
     for entry in base_effective["config"].expired_allowlist_entries(now):
         warnings.append(
@@ -134,6 +146,25 @@ def run_scan(
         lookup_budget=base_effective["config"].registry.max_lookups,
         now=now,
     )
+
+
+def score_candidate(
+    candidate: DependencyResult,
+    lookup: RegistryLookupResult,
+    *,
+    config: SlopGuardConfig,
+    index: PopularPackageIndex,
+    now: datetime,
+) -> DependencyResult:
+    """Apply recorded lookup, similarity and risk scoring to one candidate."""
+
+    enriched = apply_registry_lookup(candidate, lookup)
+    matches = find_lookalikes(enriched["normalized_name"], index, config.similarity)
+    compared = apply_similarity(enriched, matches)
+    scored = score_result(compared, config, now=now)
+    if "decision" not in scored:
+        raise RuntimeError("Scoring returned a result without a decision.")
+    return scored
 
 
 def _effective_config(
@@ -177,7 +208,7 @@ def _effective_config(
 
 def _lookup_candidates(
     candidates: tuple[DependencyResult, ...],
-    client: PyPIClient,
+    client: RegistryClient,
     config: SlopGuardConfig,
 ) -> dict[str, RegistryLookupResult]:
     budget = config.registry.max_lookups
@@ -253,6 +284,8 @@ def _make_report(
     decision: Decision = (
         max(decisions, key=lambda value: _DECISION_ORDER[value]) if decisions else "pass"
     )
+    if decision == "pass" and any(warning["kind"] == "candidate_error" for warning in warnings):
+        decision = "warn"
     return {
         "contract_version": "1.0.0",
         "tool_version": __version__,

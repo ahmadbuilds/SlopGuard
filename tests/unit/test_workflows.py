@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import tomllib
 from pathlib import Path
 
 import yaml
@@ -90,3 +91,27 @@ def test_release_reuses_ci_workflow_and_ci_supports_workflow_call() -> None:
     assert release["jobs"]["checks"]["uses"] == "./.github/workflows/ci.yml"
     assert "lint" not in release["jobs"]
     assert "test" not in release["jobs"]
+
+
+def test_ci_replays_eval_outputs_on_python_311() -> None:
+    ci = _load_yaml(ROOT / ".github/workflows/ci.yml")
+    job = ci["jobs"]["eval"]
+    assert job["steps"][-2]["run"] == "make eval"
+    assert "evals/results" in job["steps"][-1]["run"]
+    assert "run_info.json" in job["steps"][-1]["run"]
+    setup_uv = next(
+        item for item in _walk(job) if item.get("uses", "").startswith("astral-sh/setup-uv@")
+    )
+    assert setup_uv["with"]["python-version"] == "3.11"
+    makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+    assert "evals/data/real_prs.jsonl" in makefile
+    assert "evals/data/real_prs_registry.jsonl.gz" in makefile
+
+
+def test_wheel_package_discovery_excludes_evaluation_tools() -> None:
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    package_discovery = project["tool"]["setuptools"]["packages"]["find"]
+
+    assert package_discovery["where"] == ["src"]
+    assert "evals" in package_discovery["exclude"]
+    assert "evals.*" in package_discovery["exclude"]

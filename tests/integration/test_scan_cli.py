@@ -33,6 +33,9 @@ class FakeClient:
             error=None,
         )
 
+    def with_settings(self, settings):
+        return self
+
 
 def test_slopguard_scan_reads_pr_event_and_uses_depth_one_merge_checkout(
     shallow_merge_checkout: tuple[Path, str, str, str],

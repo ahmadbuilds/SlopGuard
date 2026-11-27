@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import warnings
 from collections.abc import Generator
 from pathlib import Path
 
@@ -557,6 +558,36 @@ def test_removed_standard_library_modules_are_not_dependencies() -> None:
     )
     assert result.candidates == ()
     assert result.warnings == ()
+
+
+def test_invalid_distribution_import_is_warned_and_not_a_candidate() -> None:
+    result = extract_dependencies([ChangedFile("app.py", "", "import _typeshed\n")])
+
+    assert result.candidates == ()
+    assert [(warning.line, warning.message) for warning in result.warnings] == [
+        (1, "'_typeshed' cannot be a PyPI distribution name; not checked")
+    ]
+
+
+def test_invalid_distribution_requirement_is_warned_and_not_a_candidate() -> None:
+    result = extract_dependencies([ChangedFile("requirements.txt", "", "_typeshed\n")])
+
+    assert result.candidates == ()
+    assert (
+        result.warnings[0].message == "'_typeshed' cannot be a PyPI distribution name; not checked"
+    )
+
+
+def test_python_parser_warnings_are_suppressed_for_scanned_files() -> None:
+    source = r'VALUE = "\ "' + "\nimport fixture_dependency\n"
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = extract_dependencies([ChangedFile("app.py", "", source)])
+
+    assert result.candidates
+    assert not any(
+        issubclass(item.category, (SyntaxWarning, DeprecationWarning)) for item in caught
+    )
 
 
 def test_new_manifest_dependency_is_not_suppressed_by_unchanged_import() -> None:

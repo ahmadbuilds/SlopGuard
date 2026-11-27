@@ -10,6 +10,7 @@ from __future__ import annotations
 import ast
 import re
 import tomllib
+import warnings
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from difflib import SequenceMatcher
@@ -17,7 +18,7 @@ from pathlib import PurePosixPath
 from typing import Literal
 
 from packaging.requirements import InvalidRequirement, Requirement
-from packaging.utils import canonicalize_name
+from packaging.utils import InvalidName, canonicalize_name
 
 from . import CONTRACT_VERSION
 from .contracts import DependencyResult, SourceLocation
@@ -404,34 +405,13 @@ def _extract_requirements(
             )
             continue
 
-        try:
-            requirement = Requirement(line)
-        except InvalidRequirement:
-            warnings.append(
-                ExtractionWarning(
-                    changed_file.path,
-                    line_number,
-                    "Malformed or unsupported requirement syntax was skipped.",
-                )
-            )
-            continue
-
-        if requirement.url is not None:
-            warnings.append(
-                ExtractionWarning(
-                    changed_file.path,
-                    line_number,
-                    "Direct URL requirements are unsupported and were skipped.",
-                )
-            )
-            continue
-
-        _add_candidate(
-            candidates,
-            requirement.name,
+        _add_requirement(
+            line,
             changed_file.path,
             line_number,
             "requirements",
+            candidates,
+            warnings,
         )
 
 
@@ -757,6 +737,22 @@ def _add_requirement(
     try:
         requirement = Requirement(raw_requirement)
     except InvalidRequirement:
+        match = re.match(r"^\s*([^\s\[<>=!~;]+)", raw_requirement)
+        invalid_name: str | None = None
+        if match:
+            try:
+                canonicalize_name(match.group(1), validate=True)
+            except InvalidName:
+                invalid_name = match.group(1)
+        if invalid_name is not None:
+            warnings.append(
+                ExtractionWarning(
+                    path,
+                    line_number,
+                    f"{invalid_name!r} cannot be a PyPI distribution name; not checked",
+                )
+            )
+            return
         warnings.append(
             ExtractionWarning(
                 path, line_number, "Malformed or unsupported requirement syntax was skipped."
@@ -770,7 +766,7 @@ def _add_requirement(
             )
         )
         return
-    _add_candidate(candidates, requirement.name, path, line_number, source_type)
+    _add_candidate(candidates, requirement.name, path, line_number, source_type, warnings)
 
 
 def _extract_imports(
@@ -780,7 +776,7 @@ def _extract_imports(
     local_modules: set[str],
 ) -> None:
     try:
-        head_module = ast.parse(changed_file.content)
+        head_module = _parse_python_module(changed_file.content)
     except SyntaxError as error:
         warnings.append(
             ExtractionWarning(
@@ -791,7 +787,7 @@ def _extract_imports(
         )
         return
     try:
-        base_module = ast.parse(changed_file.base_content)
+        base_module = _parse_python_module(changed_file.base_content)
     except SyntaxError as error:
         warnings.append(
             ExtractionWarning(
@@ -846,8 +842,18 @@ def _extract_imports(
             changed_file.path,
             line_number,
             "import",
+            warnings,
             normalized_name=distribution or root_name,
         )
+
+
+def _parse_python_module(source: str) -> ast.Module:
+    """Parse scanned Python while keeping parser warnings out of Action logs."""
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", SyntaxWarning)
+        warnings.simplefilter("ignore", DeprecationWarning)
+        return ast.parse(source)
 
 
 def _add_candidate(
@@ -856,11 +862,20 @@ def _add_candidate(
     path: str,
     line_number: int,
     source_type: SourceType,
+    warnings: list[ExtractionWarning],
     *,
     normalized_name: str | None = None,
 ) -> None:
-    canonical_name = str(canonicalize_name(normalized_name or requested_name))
-    if not canonical_name:
+    try:
+        canonical_name = str(canonicalize_name(normalized_name or requested_name, validate=True))
+    except InvalidName:
+        warnings.append(
+            ExtractionWarning(
+                path,
+                line_number,
+                f"{requested_name!r} cannot be a PyPI distribution name; not checked",
+            )
+        )
         return
 
     candidate = candidates.get(canonical_name)
