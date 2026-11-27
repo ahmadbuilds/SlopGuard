@@ -127,6 +127,22 @@ class GitSettings:
             )
 
 
+@dataclass(frozen=True, slots=True)
+class OutputSettings:
+    """Bounds for GitHub job summaries and workflow annotations."""
+
+    max_annotations: int = 10
+    max_findings_in_summary: int = 50
+    max_unverified_in_summary: int = 10
+    max_field_characters: int = 1000
+
+    def __post_init__(self) -> None:
+        _validate_integer("max_annotations", self.max_annotations, minimum=0)
+        _validate_integer("max_findings_in_summary", self.max_findings_in_summary, minimum=1)
+        _validate_integer("max_unverified_in_summary", self.max_unverified_in_summary, minimum=1)
+        _validate_integer("max_field_characters", self.max_field_characters, minimum=40)
+
+
 def _validate_number(
     key: str,
     value: object,
@@ -315,6 +331,7 @@ class SlopGuardConfig:
     scoring: ScoringSettings = field(default_factory=ScoringSettings)
     similarity: SimilaritySettings = field(default_factory=SimilaritySettings)
     allowlist: tuple[AllowlistEntry, ...] = ()
+    output: OutputSettings = field(default_factory=OutputSettings)
 
     def __post_init__(self) -> None:
         if isinstance(self.version, bool) or not isinstance(self.version, int) or self.version != 1:
@@ -325,6 +342,8 @@ class SlopGuardConfig:
             raise ValueError("registry must be RegistrySettings")
         if not isinstance(self.git, GitSettings):
             raise ValueError("git must be GitSettings")
+        if not isinstance(self.output, OutputSettings):
+            raise ValueError("output must be OutputSettings")
         if not isinstance(self.scoring, ScoringSettings):
             raise ValueError("scoring must be ScoringSettings")
         if not isinstance(self.similarity, SimilaritySettings):
@@ -550,7 +569,16 @@ def parse_config(
     if not config_table:
         return SlopGuardConfig()
 
-    allowed_keys = {"version", "policy", "registry", "git", "scoring", "similarity", "allowlist"}
+    allowed_keys = {
+        "version",
+        "policy",
+        "registry",
+        "git",
+        "output",
+        "scoring",
+        "similarity",
+        "allowlist",
+    }
     _reject_unknown(config_table, allowed_keys, source=source, path="config")
     defaults = SlopGuardConfig()
     version = config_table.get("version", defaults.version)
@@ -562,6 +590,7 @@ def parse_config(
     policy_table = _expect_table(config_table.get("policy", {}), source=source, key="policy")
     registry_table = _expect_table(config_table.get("registry", {}), source=source, key="registry")
     git_table = _expect_table(config_table.get("git", {}), source=source, key="git")
+    output_table = _expect_table(config_table.get("output", {}), source=source, key="output")
     scoring_table = _expect_table(config_table.get("scoring", {}), source=source, key="scoring")
     severity_table = _expect_table(
         scoring_table.get("severity", {}), source=source, key="scoring.severity"
@@ -600,6 +629,13 @@ def parse_config(
         path="git",
         defaults=defaults.git,
     )
+    output = _construct_settings(
+        OutputSettings,
+        output_table,
+        source=source,
+        path="output",
+        defaults=defaults.output,
+    )
     severity = _construct_settings(
         SeveritySettings,
         severity_table,
@@ -635,6 +671,7 @@ def parse_config(
             policy=policy,
             registry=registry,
             git=git,
+            output=output,
             scoring=scoring,
             similarity=similarity,
             allowlist=allowlist,

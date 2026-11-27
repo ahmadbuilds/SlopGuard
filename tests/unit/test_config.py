@@ -10,6 +10,7 @@ from slopguard.config import (
     AllowlistEntry,
     ConfigError,
     GitSettings,
+    OutputSettings,
     RegistrySettings,
     SlopGuardConfig,
     load_config,
@@ -30,10 +31,15 @@ def test_scan_limits_are_validated_and_defaulted() -> None:
     assert SlopGuardConfig().registry.max_concurrency == 8
     assert SlopGuardConfig().registry.max_lookups == 500
     assert GitSettings().fetch_depth == 1000
+    assert OutputSettings() == SlopGuardConfig().output
     for text, key in (
         ("[registry]\nmax_concurrency = 33", "registry.max_concurrency"),
         ("[registry]\nmax_lookups = 10001", "registry.max_lookups"),
         ("[git]\nfetch_depth = 10001", "git.fetch_depth"),
+        ("[output]\nmax_annotations = -1", "output.max_annotations"),
+        ("[output]\nmax_findings_in_summary = 0", "output.max_findings_in_summary"),
+        ("[output]\nmax_unverified_in_summary = true", "output.max_unverified_in_summary"),
+        ("[output]\nmax_field_characters = 39", "output.max_field_characters"),
     ):
         with pytest.raises(ConfigError, match=key):
             parse_config(text, source="test")
@@ -49,6 +55,7 @@ def test_same_settings_under_pyproject_tool_table_parse_identically() -> None:
         "scoring.weights",
         "scoring.signals",
         "git",
+        "output",
         "similarity",
     ):
         pyproject_config = pyproject_config.replace(f"[{table}]", f"[tool.slopguard.{table}]")
