@@ -119,7 +119,6 @@ def test_evaluation_writes_deterministic_predictions_metrics_and_report(tmp_path
             registry_path=registry,
             config_paths=(CONFIG,),
             output_dir=output,
-            git_commit="fixture-commit",
         )
 
     first = output_one / "slopguard"
@@ -144,12 +143,16 @@ def test_evaluation_writes_deterministic_predictions_metrics_and_report(tmp_path
         for row in predictions
     )
     metrics = json.loads((first / "metrics.json").read_text(encoding="utf-8"))
+    coverage = metrics["metrics"]["verification_coverage"]
+    assert coverage["verified"] == 0 and coverage["total"] > 0
+    assert "hallucinated" in coverage["by_class"]
     assert metrics["metrics"]["excluded_count"] == 3
     assert metrics["metrics"]["exists_synthetic_review_exclusions"] == [
         "fixture-synthetic-exists-name"
     ]
     assert metrics["recorded_at"] == RECORDED_AT
-    assert metrics["sha256"]["labels"]
+    assert "git_commit" not in metrics
+    assert len(metrics["sha256"]["labels"]) == 64
     assert {row["name"]: row["reason"] for row in metrics["metrics"]["excluded_rows"]}[
         "fixture-llm-existing-name"
     ] == ("LLM-suggested name exists on PyPI (not a hallucination)")
@@ -175,6 +178,14 @@ def test_evaluation_writes_deterministic_predictions_metrics_and_report(tmp_path
         "the overall line counts unique names."
     ) in report
     assert "Attack-time scenario" in report
+    assert "## Run provenance" in report
+    assert "## Verification coverage" in report
+    assert "Labels are verified automatically against their primary sources" in report
+    assert "Git commit and runtime are in run_info.json" in report
+    assert "slopguard\\.toml (SHA256" in report
+    assert "Labels SHA256:" in report and "registry recording SHA256:" in report
+    run_info = json.loads((first / "run_info.json").read_text(encoding="utf-8"))
+    assert "git_commit" in run_info and "runtime_seconds" in run_info
     assert metrics["attack_time"]["days"] == 1
     assert metrics["attack_time"]["releases"] == 1
     attack_metrics = metrics["attack_time"]["metrics"]
@@ -339,3 +350,40 @@ def test_real_pr_evaluation_reports_flagged_candidate_locations(tmp_path: Path) 
     assert "PR-level warn/block rate" in report
     assert "a" * 40 in report and "b" * 40 in report
     assert "fixture\\-never\\-published\\-eval\\-name" in report
+    assert "Selection parameters not recorded." in report
+    assert "| Reason |" in report
+    assert "PyPI returned not found" in report
+
+    collection = [json.loads(line) for line in prs.read_text(encoding="utf-8").splitlines()]
+    collection[0]["selection_parameters"] = {
+        "repositories": [{"url": "https://example.invalid/project.git", "default_branch": "main"}],
+        "per_repo": 3,
+        "cutoff_date": "2026-01-01",
+        "max_commits_to_inspect": 250,
+        "rule": "fixture selection rule",
+    }
+    prs.write_text("".join(json.dumps(row) + "\n" for row in collection), encoding="utf-8")
+    run_evaluation(
+        labels_path=LABELS,
+        registry_path=registry,
+        config_paths=(CONFIG,),
+        output_dir=tmp_path / "with-provenance",
+        real_prs_path=prs,
+        real_prs_registry_path=registry,
+    )
+    recorded_rule_report = (tmp_path / "with-provenance" / "slopguard" / "report.md").read_text(
+        encoding="utf-8"
+    )
+    assert "Selection rule: fixture selection rule" in recorded_rule_report
+    assert (
+        "per_repo=3" in recorded_rule_report
+        and "MAX_COMMITS_TO_INSPECT=250" in recorded_rule_report
+    )
+
+
+def test_current_git_commit_is_null_when_git_is_unavailable(monkeypatch) -> None:
+    def unavailable(*_args, **_kwargs):
+        raise FileNotFoundError("git not installed")
+
+    monkeypatch.setattr(evaluate_module.subprocess, "run", unavailable)
+    assert evaluate_module._current_git_commit() is None
