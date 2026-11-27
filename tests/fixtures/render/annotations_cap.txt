@@ -1,0 +1,3 @@
+::error title=SlopGuard%3A blocked::does not exist on PyPI; score 63.5; decision block; Review this dependency.
+::warning title=SlopGuard%3A warned::exists; score 63.5; decision warn; Review this dependency.
+::notice::1 more findings in the job summary
