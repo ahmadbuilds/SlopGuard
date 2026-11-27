@@ -12,18 +12,16 @@ import unicodedata
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from enum import IntEnum
+from importlib.metadata import PackageNotFoundError, distribution
 from pathlib import Path
 
 from .config import ConfigError
 from .git import GitRepository
 from .registry import PyPIClient
-from .scan import run_scan
+from .render import RenderContext, render_annotations, render_summary
+from .scan import run_scan_with_config
 
 MAX_EVENT_BYTES = 1_000_000
-MAX_SUMMARY_CHARACTERS = 20_000
-MAX_SUMMARY_FIELD_CHARACTERS = 1_000
-MAX_UNVERIFIED_SUMMARY_ITEMS = 10
-MAX_SUMMARY_NAME_CHARACTERS = 120
 MAX_ERROR_CHARACTERS = 500
 
 
@@ -52,6 +50,12 @@ def _parser() -> argparse.ArgumentParser:
     scan.add_argument("--summary", type=Path, help="write a Markdown summary to this path")
     scan.add_argument(
         "--github-output", type=Path, help="write GitHub Actions outputs to this path"
+    )
+    scan.add_argument(
+        "--annotations",
+        choices=("auto", "always", "never"),
+        default="auto",
+        help="emit GitHub workflow annotations (auto enables them on GitHub Actions)",
     )
     scan.add_argument(
         "--no-fail-on-block",
@@ -92,7 +96,7 @@ def _scan(args: argparse.Namespace) -> int:
     config_path = _config_path(args.config, root)
     repository = GitRepository(root)
     client = PyPIClient()
-    report = run_scan(
+    report, config = run_scan_with_config(
         repository,
         repository=os.environ.get("GITHUB_REPOSITORY") or root.name,
         base=base,
@@ -109,7 +113,11 @@ def _scan(args: argparse.Namespace) -> int:
             json.dumps(report, ensure_ascii=True, indent=2) + "\n",
             encoding="utf-8",
         )
-    summary = _summary(report, str(report_path) if report_path is not None else None)
+    context = _render_context(root)
+    if _annotations_enabled(args.annotations):
+        for annotation in render_annotations(report, context=context, settings=config.output):
+            print(annotation)
+    summary = render_summary(report, context=context, settings=config.output)
     summary_path = args.summary or _environment_path("GITHUB_STEP_SUMMARY")
     if summary_path is not None:
         _append_file(summary_path, summary + "\n")
@@ -177,91 +185,49 @@ def _environment_path(name: str) -> Path | None:
     return Path(value) if value else None
 
 
-def _summary(report: dict[str, object], report_path: str | None) -> str:
-    counts = report["counts"]
-    assert isinstance(counts, dict)
-    by_decision = counts["by_decision"]
-    assert isinstance(by_decision, dict)
-    lines = [
-        "# SlopGuard scan",
-        "",
-        f"**Decision:** {_markdown(report['decision'])}",
-        "",
-        "**Results:** "
-        + ", ".join(f"{key}: {by_decision[key]}" for key in ("pass", "warn", "block")),
-    ]
-    unverified = [item for item in report["results"] if item["registry_exists"] is None]
-    if unverified:
-        lines.extend(("", f"**Unverified registry results:** {len(unverified)}"))
-    if report["config_changed"]:
-        lines.extend(("", "**Configuration changed in the pull request.**"))
-    if unverified:
-        lines.extend(("", "## Unverified package metadata"))
-        for item in unverified[:MAX_UNVERIFIED_SUMMARY_ITEMS]:
-            requested_name = str(item["requested_name"])
-            if len(requested_name) > MAX_SUMMARY_NAME_CHARACTERS:
-                requested_name = requested_name[: MAX_SUMMARY_NAME_CHARACTERS - 1] + "…"
-            name = _markdown(requested_name)
-            registry_status = item.get("registry_status")
-            if not isinstance(registry_status, str):
-                registry_status = (
-                    "not queried for active allow-list"
-                    if item.get("allowlisted") is True
-                    else "unknown"
-                )
-            status = _markdown(registry_status)
-            decision = _markdown(item["decision"])
-            lines.append(
-                f"- {name}: PyPI status `{status}`; policy decision `{decision}`. "
-                "This package remains unverified; this is not evidence that the package does not exist."
-            )
-        omitted = len(unverified) - MAX_UNVERIFIED_SUMMARY_ITEMS
-        if omitted > 0:
-            lines.append(f"- {omitted} additional unverified package(s) omitted from this summary.")
-    for decision, heading in (("block", "Blocked packages"), ("warn", "Warned packages")):
-        selected = [
-            item
-            for item in report["results"]
-            if item["decision"] == decision and item["registry_exists"] is not None
-        ]
-        if selected:
-            lines.extend(("", f"## {heading}"))
-            for item in selected:
-                name = _markdown(item["requested_name"])
-                remediation = _markdown(item["remediation"])
-                lines.append(f"- {name}: {remediation}")
-    if report["warnings"]:
-        lines.extend(("", "## Warnings"))
-        for warning in report["warnings"]:
-            location = warning["file"] or "scan"
-            if warning["line"] is not None:
-                location += f":{warning['line']}"
-            lines.append(f"- {_markdown(location)}: {_markdown(warning['message'])}")
-    if report_path:
-        lines.extend(("", f"Full report: {_markdown(report_path)}"))
-    else:
-        lines.extend(("", "Full JSON report was not written."))
-    rendered = "\n".join(lines)
-    if len(rendered) > MAX_SUMMARY_CHARACTERS:
-        suffix = "\n\nSummary truncated; see the JSON report for complete details."
-        rendered = rendered[: MAX_SUMMARY_CHARACTERS - len(suffix)] + suffix
-    return rendered
+def _annotations_enabled(mode: str) -> bool:
+    return mode == "always" or (mode == "auto" and os.environ.get("GITHUB_ACTIONS") == "true")
 
 
-def _markdown(value: object) -> str:
-    text = str(value)[:MAX_SUMMARY_FIELD_CHARACTERS]
-    escaped: list[str] = []
-    for character in text:
-        category = unicodedata.category(character)
-        if character in "\r\n":
-            escaped.append("\\n")
-        elif category in {"Cc", "Cf"}:
-            escaped.append(f"\\u{ord(character):04x}")
-        elif character in "\\`*_{}[]()#+-.!|><~":
-            escaped.append("\\" + character)
+def _render_context(root: Path) -> RenderContext:
+    server = os.environ.get("GITHUB_SERVER_URL")
+    repository = os.environ.get("GITHUB_REPOSITORY")
+    run_id = os.environ.get("GITHUB_RUN_ID")
+    run_url = (
+        f"{server.rstrip('/')}/{repository}/actions/runs/{run_id}"
+        if server and repository and run_id
+        else None
+    )
+    try:
+        project_urls = distribution("slopguard").metadata.get_all("Project-URL") or []
+    except PackageNotFoundError:
+        project_urls = []
+    documentation_url = None
+    homepage_url = None
+    for project_url in project_urls:
+        label, separator, url = project_url.partition(",")
+        if not separator or not url.strip():
+            continue
+        if label.strip().casefold() == "documentation":
+            documentation_url = url.strip()
+            break
+        if label.strip().casefold() == "homepage" and homepage_url is None:
+            homepage_url = url.strip()
+
+    path_prefix = ""
+    workspace = os.environ.get("GITHUB_WORKSPACE")
+    if workspace:
+        try:
+            relative_root = root.resolve().relative_to(Path(workspace).resolve())
+        except ValueError:
+            pass
         else:
-            escaped.append(character)
-    return "".join(escaped)
+            path_prefix = relative_root.as_posix() if relative_root.parts else ""
+    return RenderContext(
+        run_url=run_url,
+        docs_url=documentation_url or homepage_url,
+        path_prefix=path_prefix,
+    )
 
 
 def _write_outputs(path: Path, report: dict[str, object], report_path: str) -> None:
