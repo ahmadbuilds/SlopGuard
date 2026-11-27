@@ -87,6 +87,26 @@ SG-07. Reruns are deterministic for the same base and head commits except for li
 can change between runs. After adding the workflow, mark the `SlopGuard` job as a required status
 check in branch protection or the repository's ruleset.
 
+## Security boundaries
+
+SlopGuard analyzes dependency declarations and Python imports from the pull request diff. It does
+not install or execute those dependencies, download their archives, or run their setup scripts.
+Registry requests put a normalized package name in the public PyPI JSON API URL and identify the
+SlopGuard version and repository in the User-Agent. Repository source, filenames, and pull-request
+text are not sent. A registry error stays unverified and appears in the scan summary, including
+when `on_unknown = "pass"` is explicitly configured. That policy setting does not mean the package
+was verified.
+
+This is a review aid, not a malware or vulnerability scanner. It does not resolve every dependency
+format or transitive dependency, verify publisher identity or artifact provenance, or detect
+homoglyph and combosquatting attacks. The optional secret scan is not implemented. See the
+[security model](SECURITY.md) and the [VOI-118 review record](SECURITY_REVIEW.md) for the threat
+model, checks, findings, and known limits.
+
+For forked pull requests, the workflow requests only `contents: read` and does not reference
+repository secrets. Keep the repository's Actions fork settings from granting write tokens or
+secrets to fork workflows; [GitHub documents how those settings affect fork runs](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflows-in-forked-repositories).
+
 ## More information
 
 - [Architecture and data flow](ARCHITECTURE.md)
