@@ -59,6 +59,9 @@ jobs:
         with:
           enable-cache: true
           python-version: "3.11"
-      - run: uv sync --locked
+      - run: uv sync --locked --group eval
       - run: make eval
+      - run: make classifier
+      - run: uv run pytest tests/unit/test_classifier.py
       - run: git diff --exit-code -- evals/results ':(exclude,glob)**/run_info.json'
+      - run: git diff --exit-code -- evals/results/classifier ':(exclude,glob)**/run_info.json'
