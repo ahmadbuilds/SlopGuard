@@ -138,6 +138,11 @@ def test_collection_records_failed_repositories_and_continues(tmp_path: Path, mo
     rows = [json.loads(line) for line in prs_path.read_text(encoding="utf-8").splitlines()]
     assert failed == 1
     assert rows[0]["record_type"] == "collection_summary"
+    parameters = rows[0]["selection_parameters"]
+    assert parameters["per_repo"] == 1
+    assert parameters["cutoff_date"] == "2025-01-01"
+    assert parameters["max_commits_to_inspect"] == collect_module.MAX_COMMITS_TO_INSPECT
+    assert "whose diff yields at least one dependency candidate" in parameters["rule"]
     assert rows[0]["repositories"] == [
         {
             "repo": "https://github.com/example/fails.git",
