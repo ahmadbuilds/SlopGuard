@@ -83,6 +83,22 @@ class SourceLocation(TypedDict):
     source_type: Literal["requirements", "pyproject", "import"]
 
 
+class AllowlistInfo(TypedDict):
+    """Active allow-list exception attached to a scored result."""
+
+    reason: str
+    expires: str | None
+
+
+class PolicySummary(TypedDict):
+    """Effective base-branch policy recorded with a scan report."""
+
+    mode: Literal["warn", "block"]
+    warn_threshold: float
+    block_threshold: float
+    on_unknown: Literal["warn", "pass"]
+
+
 class DependencyResult(TypedDict):
     """Stable handoff shape shared by scanner stages and presentation."""
 
@@ -102,6 +118,7 @@ class DependencyResult(TypedDict):
     score_contributions: NotRequired[list[ScoreContribution]]
     decision: NotRequired[Decision]
     allowlisted: NotRequired[bool]
+    allowlist: NotRequired[AllowlistInfo]
 
 
 class ScanWarning(TypedDict):
@@ -125,6 +142,7 @@ class ScanReport(TypedDict):
     head_sha: str
     config_source: str
     config_changed: bool
+    policy: PolicySummary
     decision: Decision
     counts: dict[str, dict[str, int]]
     results: list[DependencyResult]

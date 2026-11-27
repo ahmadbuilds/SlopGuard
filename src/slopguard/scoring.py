@@ -64,6 +64,14 @@ def score_result(
     scored["score_contributions"] = contributions
     scored["decision"] = decision
     scored["allowlisted"] = allowlisted
+    scored.pop("allowlist", None)
+    if allowlist_entry is not None:
+        scored["allowlist"] = {
+            "reason": allowlist_entry.reason,
+            "expires": allowlist_entry.expires.isoformat()
+            if allowlist_entry.expires is not None
+            else None,
+        }
     return scored
 
 

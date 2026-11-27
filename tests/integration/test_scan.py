@@ -185,6 +185,12 @@ def test_scan_uses_base_tip_policy_and_reports_head_config_change(short_tmp_path
     assert report["decision"] == "block"
     assert report["config_changed"] is True
     assert report["config_source"] == "slopguard.toml"
+    assert report["policy"] == {
+        "mode": "block",
+        "warn_threshold": 40,
+        "block_threshold": 80,
+        "on_unknown": "warn",
+    }
 
 
 def test_policy_tightened_after_fork_applies_to_open_pull_request(short_tmp_path: Path) -> None:

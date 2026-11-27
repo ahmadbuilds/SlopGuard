@@ -165,7 +165,7 @@ def test_from_mapping_rejects_unknown_keys_and_accepts_toml_pairs() -> None:
 
 def test_apply_similarity_preserves_other_result_fields_and_validates_schema() -> None:
     candidate: DependencyResult = {
-        "contract_version": "1.0.0",
+        "contract_version": "1.1.0",
         "requested_name": "reqeusts",
         "normalized_name": "reqeusts",
         "registry_exists": False,
@@ -228,7 +228,7 @@ def test_apply_similarity_preserves_other_result_fields_and_validates_schema() -
 
 def test_apply_similarity_requires_a_nonempty_requested_name() -> None:
     candidate: DependencyResult = {
-        "contract_version": "1.0.0",
+        "contract_version": "1.1.0",
         "requested_name": "",
         "normalized_name": "pyyaml",
         "registry_exists": None,
