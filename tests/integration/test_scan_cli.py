@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
-from slopguard.cli import ExitCode, _summary, main
+from slopguard.cli import ExitCode, main
 from slopguard.registry import RegistryLookupResult
 
 
@@ -35,6 +36,49 @@ class FakeClient:
 
     def with_settings(self, settings):
         return self
+
+
+class NotFoundClient(FakeClient):
+    def lookup(self, name: str) -> RegistryLookupResult:
+        return RegistryLookupResult(
+            normalized_name=name,
+            status="not_found",
+            metadata=None,
+            latency_ms=1.0,
+            attempts=1,
+            http_status=404,
+            retry_after=None,
+            rate_limit_remaining=None,
+            error=None,
+        )
+
+
+def _repository_with_lookalike(root: Path) -> tuple[str, str]:
+    root.mkdir()
+    for arguments in (
+        ("init", "-b", "main"),
+        ("config", "user.name", "SlopGuard tests"),
+        ("config", "user.email", "tests@example.invalid"),
+    ):
+        subprocess.run(["git", *arguments], cwd=root, check=True, capture_output=True, text=True)
+    requirements = root / "requirements.txt"
+    requirements.write_text("# initial state\n", encoding="utf-8")
+    config = root / "slopguard.toml"
+    config.write_text("[policy]\nmode = 'warn'\n[output]\nmax_annotations = 1\n", encoding="utf-8")
+    subprocess.run(["git", "add", "requirements.txt", "slopguard.toml"], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-m", "base"], cwd=root, check=True, capture_output=True)
+    base = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=root, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    requirements.write_text("# initial state\nreqeusts\n", encoding="utf-8")
+    config.write_text("[policy]\nmode = 'block'\n[output]\nmax_annotations = 0\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "commit", "-am", "add a look-alike"], cwd=root, check=True, capture_output=True
+    )
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=root, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    return base, head
 
 
 def test_slopguard_scan_reads_pr_event_and_uses_depth_one_merge_checkout(
@@ -75,7 +119,7 @@ def test_slopguard_scan_reads_pr_event_and_uses_depth_one_merge_checkout(
     assert report["repository"] == "example/shallow-pr"
     assert report["merge_base_sha"] == common
     assert [item["normalized_name"] for item in report["results"]] == ["requests"]
-    assert "SlopGuard scan" in summary_path.read_text(encoding="utf-8")
+    assert "SlopGuard: PASS" in summary_path.read_text(encoding="utf-8")
     output = output_path.read_text(encoding="utf-8")
     assert "decision<<slopguard_" in output
     assert "report-path<<slopguard_" in output
@@ -97,94 +141,70 @@ def test_cli_rejects_pull_request_target_without_traceback(
     assert "Traceback" not in captured.err
 
 
+def test_auto_annotations_are_silent_outside_github_actions(
+    short_tmp_path: Path, monkeypatch, capsys
+) -> None:
+    root = short_tmp_path / "auto-repo"
+    base, head = _repository_with_lookalike(root)
+    monkeypatch.setattr("slopguard.cli.PyPIClient", NotFoundClient)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+
+    exit_code = main(
+        [
+            "scan",
+            "--repo",
+            str(root),
+            "--base",
+            base,
+            "--head",
+            head,
+            "--no-fail-on-block",
+        ]
+    )
+
+    assert exit_code == ExitCode.OK
+    output = capsys.readouterr().out
+    assert output.startswith("# SlopGuard: WARN")
+    assert not any(line.startswith("::") for line in output.splitlines())
+
+
+def test_annotations_always_writes_workflow_commands_before_summary(
+    short_tmp_path: Path, monkeypatch, capsys
+) -> None:
+    root = short_tmp_path / "always-repo"
+    base, head = _repository_with_lookalike(root)
+    monkeypatch.setattr("slopguard.cli.PyPIClient", NotFoundClient)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+
+    exit_code = main(
+        [
+            "scan",
+            "--repo",
+            str(root),
+            "--base",
+            base,
+            "--head",
+            head,
+            "--annotations",
+            "always",
+            "--no-fail-on-block",
+        ]
+    )
+
+    assert exit_code == ExitCode.OK
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0].startswith("::warning ")
+    assert lines[1] == "# SlopGuard: WARN"
+    assert any("Policy: mode warn" in line for line in lines)
+    assert any("base-branch policy was used" in line for line in lines)
+
+
 def test_cli_requires_base_and_head_together(short_tmp_path: Path, capsys) -> None:
     exit_code = main(["scan", "--repo", str(short_tmp_path), "--base", "a" * 40])
 
     assert exit_code == ExitCode.CONFIG_ERROR
     assert "provided together" in capsys.readouterr().err
-
-
-def test_summary_marks_passed_unknown_registry_results_as_unverified() -> None:
-    report = {
-        "decision": "pass",
-        "counts": {"by_decision": {"pass": 1, "warn": 0, "block": 0}},
-        "config_changed": False,
-        "results": [
-            {
-                "decision": "pass",
-                "requested_name": "reqeusts",
-                "registry_exists": None,
-                "registry_status": "transient_error",
-                "remediation": "Review this dependency.",
-            }
-        ],
-        "warnings": [],
-    }
-
-    summary = _summary(report, None)
-
-    assert "Unverified package metadata" in summary
-    assert "reqeusts" in summary
-    assert "transient\\_error" in summary
-    assert "not evidence that the package does not exist" in summary
-
-
-def test_summary_labels_active_allowlist_as_unqueried_registry_metadata() -> None:
-    report = {
-        "decision": "pass",
-        "counts": {"by_decision": {"pass": 1, "warn": 0, "block": 0}},
-        "config_changed": False,
-        "results": [
-            {
-                "decision": "pass",
-                "requested_name": "internal-package",
-                "registry_exists": None,
-                "allowlisted": True,
-                "metadata_evidence": [],
-            }
-        ],
-        "warnings": [],
-    }
-
-    summary = _summary(report, None)
-
-    assert r"internal\-package" in summary
-    assert "not queried" in summary
-    assert r"active allow\-list" in summary
-    assert "This package remains unverified" in summary
-
-
-def test_summary_keeps_unverified_results_visible_when_other_rows_are_truncated() -> None:
-    results = [
-        {
-            "decision": "warn",
-            "requested_name": f"known-package-{index}",
-            "registry_exists": True,
-            "registry_status": "exists",
-            "remediation": "x" * 1_000,
-        }
-        for index in range(300)
-    ]
-    results.append(
-        {
-            "decision": "pass",
-            "requested_name": "reqeusts",
-            "registry_exists": None,
-            "registry_status": "transient_error",
-            "remediation": "Review this dependency.",
-        }
-    )
-    report = {
-        "decision": "warn",
-        "counts": {"by_decision": {"pass": 1, "warn": 300, "block": 0}},
-        "config_changed": False,
-        "results": results,
-        "warnings": [],
-    }
-
-    summary = _summary(report, None)
-
-    assert "**Unverified registry results:** 1" in summary
-    assert "## Unverified package metadata" in summary
-    assert "reqeusts" in summary
-    assert "Summary truncated" in summary

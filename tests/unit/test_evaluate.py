@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import gzip
 import json
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from evals.evaluate import (
     main as evaluate_main,
 )
 from evals.replay import ReplayClient
+from slopguard.config import OutputSettings, SlopGuardConfig
 from slopguard.registry import RegistryLookupResult
 from slopguard.similarity import PopularPackageIndex
 
@@ -24,6 +26,17 @@ ROOT = Path(__file__).resolve().parents[2]
 LABELS = ROOT / "tests/fixtures/evals/labels.jsonl"
 CONFIG = ROOT / "examples/slopguard.toml"
 RECORDED_AT = "2026-01-01T00:00:00Z"
+
+
+def test_default_evaluation_hash_ignores_presentation_only_output_settings() -> None:
+    default_config = SlopGuardConfig()
+    changed_output_config = replace(
+        default_config, output=OutputSettings(max_annotations=0, max_findings_in_summary=20)
+    )
+
+    assert evaluate_module._sha256_defaults(default_config) == evaluate_module._sha256_defaults(
+        changed_output_config
+    )
 
 
 def _registry(path: Path) -> None:
@@ -274,7 +287,7 @@ def test_real_pr_evaluation_reports_flagged_candidate_locations(tmp_path: Path) 
     _registry(registry)
     prs = tmp_path / "real-prs.jsonl"
     candidate = {
-        "contract_version": "1.0.0",
+        "contract_version": "1.1.0",
         "requested_name": "fixture-never-published-eval-name",
         "normalized_name": "fixture-never-published-eval-name",
         "registry_exists": None,

@@ -9,8 +9,8 @@ from datetime import datetime, timedelta
 from pathlib import PurePosixPath
 from typing import TypedDict
 
-from . import __version__
-from .config import ConfigError, GitSettings, SlopGuardConfig, parse_config
+from . import CONTRACT_VERSION, __version__
+from .config import ConfigError, GitSettings, PolicySettings, SlopGuardConfig, parse_config
 from .contracts import Decision, DependencyResult, ScanReport, ScanWarning
 from .extractor import (
     ExtractionWarning,
@@ -46,6 +46,30 @@ def run_scan(
     config_path: str | None = None,
 ) -> ScanReport:
     """Run one deterministic scan using the pull request base-tip policy."""
+
+    report, _config = run_scan_with_config(
+        repo,
+        repository=repository,
+        base=base,
+        head=head,
+        client=client,
+        now=now,
+        config_path=config_path,
+    )
+    return report
+
+
+def run_scan_with_config(
+    repo: GitRepository,
+    *,
+    repository: str,
+    base: str,
+    head: str,
+    client: RegistryClient,
+    now: datetime,
+    config_path: str | None = None,
+) -> tuple[ScanReport, SlopGuardConfig]:
+    """Run a scan and return the exact base-tip config used to evaluate it."""
 
     if now.tzinfo is None or now.utcoffset() != timedelta(0):
         raise ValueError("now must be a timezone-aware UTC datetime.")
@@ -146,7 +170,7 @@ def run_scan(
         )
     warnings.sort(key=lambda item: (item["file"], item["line"] or 0, item["kind"], item["message"]))
     results.sort(key=lambda item: item["normalized_name"])
-    return _make_report(
+    report = _make_report(
         results=results,
         warnings=warnings,
         repository=repository,
@@ -155,10 +179,12 @@ def run_scan(
         head=head,
         config_source=base_effective["source"],
         config_changed=config_changed,
+        policy=base_effective["config"].policy,
         lookup_used=min(len(lookup_candidates), base_effective["config"].registry.max_lookups),
         lookup_budget=base_effective["config"].registry.max_lookups,
         now=now,
     )
+    return report, base_effective["config"]
 
 
 def score_candidate(
@@ -307,6 +333,7 @@ def _make_report(
     head: str,
     config_source: str,
     config_changed: bool,
+    policy: PolicySettings,
     lookup_used: int,
     lookup_budget: int,
     now: datetime,
@@ -325,7 +352,7 @@ def _make_report(
     if decision == "pass" and any(warning["kind"] == "candidate_error" for warning in warnings):
         decision = "warn"
     return {
-        "contract_version": "1.0.0",
+        "contract_version": CONTRACT_VERSION,
         "tool_version": __version__,
         "generated_at": now.isoformat().replace("+00:00", "Z"),
         "repository": repository,
@@ -334,6 +361,12 @@ def _make_report(
         "head_sha": head,
         "config_source": config_source,
         "config_changed": config_changed,
+        "policy": {
+            "mode": policy.mode,
+            "warn_threshold": policy.warn_threshold,
+            "block_threshold": policy.block_threshold,
+            "on_unknown": policy.on_unknown,
+        },
         "decision": decision,
         "counts": {"by_decision": decision_counts, "by_severity": severity_counts},
         "results": results,

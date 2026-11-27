@@ -17,7 +17,7 @@
     "remediation"
   ],
   "properties": {
-    "contract_version": {"type": "string", "const": "1.0.0"},
+    "contract_version": {"type": "string", "const": "1.1.0"},
     "requested_name": {"type": "string", "minLength": 1},
     "normalized_name": {
       "type": "string",
@@ -50,12 +50,22 @@
     },
     "decision": {"enum": ["pass", "warn", "block"]},
     "allowlisted": {"type": "boolean"},
+    "allowlist": {"$ref": "#/$defs/allowlist"},
     "source_locations": {
       "type": "array",
       "items": {"$ref": "#/$defs/sourceLocation"}
     }
   },
   "$defs": {
+    "allowlist": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason", "expires"],
+      "properties": {
+        "reason": {"type": "string", "minLength": 1},
+        "expires": {"type": ["string", "null"], "format": "date"}
+      }
+    },
     "metadataEvidence": {
       "type": "object",
       "additionalProperties": false,

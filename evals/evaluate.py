@@ -17,7 +17,7 @@ from typing import cast
 
 from packaging.utils import canonicalize_name
 
-from slopguard import __version__
+from slopguard import CONTRACT_VERSION, __version__
 from slopguard.config import SlopGuardConfig, parse_config
 from slopguard.contracts import DependencyResult
 from slopguard.registry import RegistryLookupResult
@@ -71,7 +71,10 @@ def _sha256_file(path: Path) -> str:
 
 
 def _sha256_defaults(config: SlopGuardConfig) -> str:
-    payload = json.dumps(asdict(config), sort_keys=True, separators=(",", ":"))
+    evaluation_settings = asdict(config)
+    # Output limits change presentation, not the evaluated decisions or metrics.
+    evaluation_settings.pop("output", None)
+    payload = json.dumps(evaluation_settings, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -335,7 +338,7 @@ def evaluate_attack_time(
 def _candidate_for_name(label: Label) -> DependencyResult:
     normalized = canonicalize_name(label.name, validate=True)
     return {
-        "contract_version": "1.0.0",
+        "contract_version": CONTRACT_VERSION,
         "requested_name": label.name,
         "normalized_name": normalized,
         "registry_exists": None,

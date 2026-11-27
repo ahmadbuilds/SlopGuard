@@ -1,5 +1,5 @@
 {
-  "contract_version": "1.0.0",
+  "contract_version": "1.1.0",
   "tool_version": "0.1.0",
   "generated_at": "2026-05-01T00:00:00Z",
   "repository": "sample-project",
@@ -8,6 +8,12 @@
   "head_sha": "fedcba9876543210",
   "config_source": "slopguard.toml",
   "config_changed": false,
+  "policy": {
+    "mode": "block",
+    "warn_threshold": 40,
+    "block_threshold": 80,
+    "on_unknown": "warn"
+  },
   "decision": "block",
   "counts": {
     "by_decision": {"pass": 0, "warn": 0, "block": 1},
@@ -15,7 +21,7 @@
   },
   "results": [
     {
-      "contract_version": "1.0.0",
+      "contract_version": "1.1.0",
       "requested_name": "reqeusts",
       "normalized_name": "reqeusts",
       "registry_exists": false,

@@ -1,7 +1,7 @@
 """Tests for deterministic score, severity and policy decisions."""
 
 from dataclasses import replace
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from jsonschema import Draft202012Validator
@@ -35,7 +35,7 @@ def make_result(
             (NOW - timedelta(days=first_release_days_ago)).isoformat().replace("+00:00", "Z")
         )
     result: DependencyResult = {
-        "contract_version": "1.0.0",
+        "contract_version": "1.1.0",
         "requested_name": name,
         "normalized_name": name,
         "registry_exists": True if status == "exists" else False if status == "not_found" else None,
@@ -322,17 +322,19 @@ def test_import_only_not_found_lookalike_is_capped_at_warn() -> None:
 def test_allowlisted_result_passes_but_keeps_its_score_and_contributions() -> None:
     config = replace(
         blocking_config(),
-        allowlist=(AllowlistEntry("reqeusts", "approved exception"),),
+        allowlist=(AllowlistEntry("reqeusts", "approved exception", date(2026, 2, 1)),),
     )
     candidate = make_result("reqeusts", status="not_found", matches=(match("requests", 1, 8),))
 
     scored = score(candidate, config)
 
     assert scored["allowlisted"] is True
+    assert scored["allowlist"] == {"reason": "approved exception", "expires": "2026-02-01"}
     assert scored["decision"] == "pass"
     assert scored["risk_score"] == 95
     assert contribution(scored, "not_found")["points"] == 60
     assert contribution(scored, "lookalike")["points"] == 35
+    SCHEMA_VALIDATOR.validate(scored)
 
 
 def test_expired_allowlist_entry_does_not_apply() -> None:

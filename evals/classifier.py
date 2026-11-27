@@ -16,6 +16,7 @@ from typing import Literal
 from packaging.utils import InvalidName, canonicalize_name
 
 from .constants import (
+    CLASSIFIER_PROBABILITY_DECIMALS,
     DEFAULT_CLASSIFIER_BLOCK_ATTACK_TIME_PATH,
     DEFAULT_CLASSIFIER_BLOCK_PREDICTIONS_PATH,
     DEFAULT_CLASSIFIER_CONCLUSION_PATH,
@@ -388,7 +389,10 @@ def _positive_probabilities(estimator, matrix: list[list[float]]) -> list[float]
         positive_index = classes.index(1)
     except ValueError as error:
         raise ValueError("classifier training data does not contain the flag class") from error
-    return [float(probability[positive_index]) for probability in estimator.predict_proba(matrix)]
+    return [
+        round(float(probability[positive_index]), CLASSIFIER_PROBABILITY_DECIMALS)
+        for probability in estimator.predict_proba(matrix)
+    ]
 
 
 def _scenario_metrics(

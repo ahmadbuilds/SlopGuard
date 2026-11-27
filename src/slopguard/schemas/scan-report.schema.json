@@ -15,6 +15,7 @@
     "head_sha",
     "config_source",
     "config_changed",
+    "policy",
     "decision",
     "counts",
     "results",
@@ -22,7 +23,7 @@
     "lookups"
   ],
   "properties": {
-    "contract_version": {"const": "1.0.0"},
+    "contract_version": {"const": "1.1.0"},
     "tool_version": {"type": "string", "minLength": 1},
     "generated_at": {"type": "string", "format": "date-time"},
     "repository": {"type": "string", "minLength": 1},
@@ -31,6 +32,17 @@
     "head_sha": {"type": "string", "minLength": 1},
     "config_source": {"type": "string", "minLength": 1},
     "config_changed": {"type": "boolean"},
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "warn_threshold", "block_threshold", "on_unknown"],
+      "properties": {
+        "mode": {"enum": ["warn", "block"]},
+        "warn_threshold": {"type": "number", "minimum": 0, "maximum": 100},
+        "block_threshold": {"type": "number", "minimum": 0, "maximum": 100},
+        "on_unknown": {"enum": ["warn", "pass"]}
+      }
+    },
     "decision": {"enum": ["pass", "warn", "block"]},
     "counts": {
       "type": "object",

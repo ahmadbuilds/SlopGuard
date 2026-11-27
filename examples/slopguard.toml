@@ -11,6 +11,16 @@ block_threshold = 80
 # Unknown registry results warn by default; "pass" removes that floor.
 on_unknown = "warn"
 
+[output]
+# Maximum number of GitHub workflow annotations to emit (0 disables annotations).
+max_annotations = 10
+# Maximum number of block and warn findings to include in the job summary.
+max_findings_in_summary = 50
+# Maximum number of unknown-registry results to list near the top of the summary.
+max_unverified_in_summary = 10
+# Maximum characters rendered for each report-derived field in the summary.
+max_field_characters = 1000
+
 [registry]
 # Maximum duration for one HTTP request, including DNS, TLS and body reads.
 timeout_seconds = 3.0
