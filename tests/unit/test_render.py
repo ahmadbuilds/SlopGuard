@@ -23,9 +23,12 @@ from slopguard.contracts import (
     load_scan_report_schema,
 )
 from slopguard.render import (
+    COMMENT_MARKER,
+    MAX_COMMENT_CHARACTERS,
     MAX_JOB_SUMMARY_BYTES,
     RenderContext,
     render_annotations,
+    render_comment,
     render_summary,
 )
 
@@ -253,6 +256,32 @@ def test_zero_annotation_cap_disables_all_annotations() -> None:
         render_annotations(report, context=CONTEXT, settings=OutputSettings(max_annotations=0))
         == []
     )
+
+
+def test_comment_starts_with_marker_and_reuses_escaped_summary_content() -> None:
+    hostile = _result("<img src=x onerror=alert(1)>", decision="warn")
+    report = _report([hostile])
+
+    comment = render_comment(report, context=CONTEXT, settings=OutputSettings())
+
+    assert comment.startswith(f"{COMMENT_MARKER}\n\n# SlopGuard:")
+    assert "\\<img" in comment
+    assert "\n# SlopGuard: <img" not in comment
+    assert comment.removeprefix(f"{COMMENT_MARKER}\n\n") == render_summary(
+        report, context=CONTEXT, settings=OutputSettings()
+    )
+
+
+def test_comment_truncation_keeps_note_and_run_link_within_character_limit() -> None:
+    result = _result("large-finding", decision="warn", remediation="detail " * 12_000)
+    settings = OutputSettings(max_field_characters=100_000)
+
+    comment = render_comment(_report([result]), context=CONTEXT, settings=settings)
+
+    assert len(comment) <= MAX_COMMENT_CHARACTERS
+    assert comment.startswith(COMMENT_MARKER)
+    assert "Summary truncated" in comment
+    assert CONTEXT.run_url in comment
 
 
 def test_summary_escapes_report_supplied_injection_fixtures() -> None:
