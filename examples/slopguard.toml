@@ -20,6 +20,10 @@ max_findings_in_summary = 50
 max_unverified_in_summary = 10
 # Maximum characters rendered for each report-derived field in the summary.
 max_field_characters = 1000
+# Request deadline for the optional sticky pull-request comment.
+comment_timeout_seconds = 10
+# Maximum number of comment pages to inspect before stopping.
+max_comment_pages = 10
 
 [registry]
 # Maximum duration for one HTTP request, including DNS, TLS and body reads.

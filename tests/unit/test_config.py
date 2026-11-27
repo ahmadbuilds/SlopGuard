@@ -40,6 +40,9 @@ def test_scan_limits_are_validated_and_defaulted() -> None:
         ("[output]\nmax_findings_in_summary = 0", "output.max_findings_in_summary"),
         ("[output]\nmax_unverified_in_summary = true", "output.max_unverified_in_summary"),
         ("[output]\nmax_field_characters = 39", "output.max_field_characters"),
+        ("[output]\ncomment_timeout_seconds = 0", "output.comment_timeout_seconds"),
+        ("[output]\ncomment_timeout_seconds = 61", "output.comment_timeout_seconds"),
+        ("[output]\nmax_comment_pages = 0", "output.max_comment_pages"),
     ):
         with pytest.raises(ConfigError, match=key):
             parse_config(text, source="test")

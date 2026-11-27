@@ -129,18 +129,26 @@ class GitSettings:
 
 @dataclass(frozen=True, slots=True)
 class OutputSettings:
-    """Bounds for GitHub job summaries and workflow annotations."""
+    """Bounds for GitHub summaries, annotations, and optional pull-request comments."""
 
     max_annotations: int = 10
     max_findings_in_summary: int = 50
     max_unverified_in_summary: int = 10
     max_field_characters: int = 1000
+    comment_timeout_seconds: int = 10
+    max_comment_pages: int = 10
 
     def __post_init__(self) -> None:
         _validate_integer("max_annotations", self.max_annotations, minimum=0)
         _validate_integer("max_findings_in_summary", self.max_findings_in_summary, minimum=1)
         _validate_integer("max_unverified_in_summary", self.max_unverified_in_summary, minimum=1)
         _validate_integer("max_field_characters", self.max_field_characters, minimum=40)
+        _validate_integer("comment_timeout_seconds", self.comment_timeout_seconds, minimum=1)
+        if self.comment_timeout_seconds > 60:
+            raise _SettingError(
+                "comment_timeout_seconds", "must be at most 60", self.comment_timeout_seconds
+            )
+        _validate_integer("max_comment_pages", self.max_comment_pages, minimum=1)
 
 
 def _validate_number(
