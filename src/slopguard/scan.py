@@ -11,7 +11,12 @@ from typing import TypedDict
 from . import __version__
 from .config import ConfigError, GitSettings, SlopGuardConfig, parse_config
 from .contracts import Decision, DependencyResult, ScanReport, ScanWarning
-from .extractor import ExtractionWarning, extract_dependencies, local_modules_from_paths
+from .extractor import (
+    ExtractionWarning,
+    extract_dependencies,
+    local_modules_from_paths,
+    local_test_modules_by_directory,
+)
 from .git import GitRepository, GitWarning
 from .registry import PyPIClient, RegistryLookupResult
 from .registry_result import apply_registry_lookup
@@ -78,7 +83,11 @@ def run_scan(
         head_paths,
         project_name=base_effective["project_name"],
     )
-    extracted = extract_dependencies(changed_files, local_modules=local_modules)
+    extracted = extract_dependencies(
+        changed_files,
+        local_modules=local_modules,
+        local_modules_by_test_directory=local_test_modules_by_directory(head_paths),
+    )
     warnings.extend(_from_extraction_warning(item) for item in extracted.warnings)
 
     candidates = tuple(sorted(extracted.candidates, key=lambda item: item["normalized_name"]))

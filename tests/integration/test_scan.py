@@ -259,6 +259,41 @@ def test_project_and_test_helper_imports_are_treated_as_local(short_tmp_path: Pa
     assert client.lookups == []
 
 
+def test_nested_source_module_does_not_hide_external_import(short_tmp_path: Path) -> None:
+    root, _ = _repo(short_tmp_path)
+    nested_module = root / "src" / "unrelated" / "requests.py"
+    nested_module.parent.mkdir(parents=True)
+    nested_module.write_text("VALUE = 1\n", encoding="utf-8")
+    base = _commit(root, "add unrelated namespace module")
+    (root / "app.py").write_text("import requests\n", encoding="utf-8")
+    head = _commit(root, "add external dependency import")
+    client = FakeClient()
+
+    report = _scan(root, base, head, client)
+
+    assert [result["normalized_name"] for result in report["results"]] == ["requests"]
+    assert client.lookups == ["requests"]
+
+
+def test_test_helper_does_not_hide_external_import_in_application_code(
+    short_tmp_path: Path,
+) -> None:
+    root, _ = _repo(short_tmp_path)
+    tests_requests = root / "tests" / "requests.py"
+    tests_requests.parent.mkdir()
+    tests_requests.write_text("VALUE = 1\n", encoding="utf-8")
+    (tests_requests.parent / "test_a.py").write_text("import requests\n", encoding="utf-8")
+    base = _commit(root, "add test module named requests")
+    (root / "app.py").write_text("import requests\n", encoding="utf-8")
+    head = _commit(root, "add application dependency import")
+    client = FakeClient()
+
+    report = _scan(root, base, head, client)
+
+    assert [result["normalized_name"] for result in report["results"]] == ["requests"]
+    assert client.lookups == ["requests"]
+
+
 def test_mapped_imports_with_distribution_names_scan_successfully(short_tmp_path: Path) -> None:
     root, base = _repo(short_tmp_path)
     (root / "tests").mkdir()
