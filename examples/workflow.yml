@@ -5,6 +5,8 @@ on:
 
 permissions:
   contents: read
+  # To enable sticky PR comments, also grant:
+  # pull-requests: write
 
 jobs:
   slopguard:
@@ -18,3 +20,5 @@ jobs:
       - uses: ahmadbuilds/SlopGuard@v1
         with:
           fail-on-block: "true"
+          # Opt in only after granting pull-requests: write above.
+          # comment: "true"

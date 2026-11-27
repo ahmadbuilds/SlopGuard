@@ -10,8 +10,10 @@ from .config import OutputSettings
 from .contracts import DependencyResult, PolicySummary, ScanReport
 
 # GitHub limits a job-summary step to 1 MiB; this platform ceiling is not configurable.
-# https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#adding-a-job-summary
 MAX_JOB_SUMMARY_BYTES = 1_048_576
+# GitHub limits issue comment bodies to 65,536 characters.
+MAX_COMMENT_CHARACTERS = 65_536
+COMMENT_MARKER = "<!-- slopguard:comment -->"
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,6 +132,17 @@ def render_summary(report: ScanReport, *, context: RenderContext, settings: Outp
     lines.extend(("", _footer(report["tool_version"], context, settings)))
     rendered = "\n".join(lines)
     return _truncate_summary(rendered, context, settings)
+
+
+def render_comment(report: ScanReport, *, context: RenderContext, settings: OutputSettings) -> str:
+    """Render the summary as a bounded sticky-comment body with a stable marker."""
+
+    content = f"{COMMENT_MARKER}\n\n{render_summary(report, context=context, settings=settings)}"
+    if len(content) <= MAX_COMMENT_CHARACTERS:
+        return content
+    note = _truncation_note(context, settings)
+    available = MAX_COMMENT_CHARACTERS - len(note)
+    return content[:available].rstrip() + note
 
 
 def _finding_lines(
@@ -388,14 +401,7 @@ def _truncate_summary(rendered: str, context: RenderContext, settings: OutputSet
     data = rendered.encode("utf-8")
     if len(data) <= MAX_JOB_SUMMARY_BYTES:
         return rendered
-    if context.run_url:
-        run_url = _link_destination(context.run_url, settings.max_field_characters)
-        note = (
-            "\n\nSummary truncated; see the "
-            f"[workflow run]({run_url}) or JSON report for full details."
-        )
-    else:
-        note = "\n\nSummary truncated; see the JSON report for full details."
+    note = _truncation_note(context, settings)
     budget = MAX_JOB_SUMMARY_BYTES - len(note.encode("utf-8"))
     prefix_data = data[:budget]
     closing = ""
@@ -407,3 +413,13 @@ def _truncate_summary(rendered: str, context: RenderContext, settings: OutputSet
             closing = ""
     prefix = prefix_data.decode("utf-8", errors="ignore")
     return prefix + closing + note
+
+
+def _truncation_note(context: RenderContext, settings: OutputSettings) -> str:
+    if context.run_url:
+        run_url = _link_destination(context.run_url, settings.max_field_characters)
+        return (
+            "\n\nSummary truncated; see the "
+            f"[workflow run]({run_url}) or JSON report for full details."
+        )
+    return "\n\nSummary truncated; see the JSON report for full details."

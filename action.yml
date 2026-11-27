@@ -21,6 +21,14 @@ inputs:
     description: Return a failing status when the scan decision is block.
     required: false
     default: "true"
+  comment:
+    description: Opt in to creating or updating SlopGuard's sticky pull-request comment.
+    required: false
+    default: "false"
+  github-token:
+    description: Token used only when comment is true; fork pull requests are skipped.
+    required: false
+    default: ${{ github.token }}
 outputs:
   decision:
     description: Overall scan decision (pass, warn, or block).
@@ -50,6 +58,10 @@ runs:
         SLOPGUARD_CONFIG: ${{ inputs.config }}
         SLOPGUARD_REPORT_PATH: ${{ inputs.report-path }}
         SLOPGUARD_FAIL_ON_BLOCK: ${{ inputs.fail-on-block }}
+        SLOPGUARD_COMMENT: ${{ inputs.comment }}
+        # Expose the token to the scan step only when the opt-in comment is enabled.
+        GITHUB_TOKEN: ${{ inputs.comment == 'true' && inputs.github-token || '' }}
+        GITHUB_API_URL: ${{ github.api_url }}
         SLOPGUARD_RUNNER_TEMP: ${{ runner.temp }}
       run: |
         if [[ -z "$SLOPGUARD_REPORT_PATH" ]]; then
@@ -61,5 +73,8 @@ runs:
         fi
         if [[ "$SLOPGUARD_FAIL_ON_BLOCK" != "true" ]]; then
           args+=(--no-fail-on-block)
+        fi
+        if [[ "$SLOPGUARD_COMMENT" == "true" ]]; then
+          args+=(--comment auto)
         fi
         uv run --no-config --project "$GITHUB_ACTION_PATH" --locked --no-dev slopguard "${args[@]}"
