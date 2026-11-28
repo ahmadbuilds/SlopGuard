@@ -1,0 +1,10 @@
+version = 1
+
+[policy]
+mode = "warn"
+
+[[allowlist]]
+# Replace this example with an exact package name and a real reason.
+name = "internal-package"
+reason = "Approved internal dependency while its public release is prepared."
+expires = 2027-01-31
