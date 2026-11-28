@@ -8,6 +8,12 @@ always points at the latest `1.x.y` release.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-11-28
+
+### Changed
+
+- Refresh the published documentation and package metadata for the stable release.
+
 ### Fixed
 
 - Use singular labels for one dependency, finding or result in GitHub summaries and annotations.
@@ -85,6 +91,7 @@ First stable release of the SlopGuard GitHub Action.
 - Initial pre-release: dependency extraction, the PyPI registry client, look-alike detection and
   configurable risk scoring.
 
-[Unreleased]: https://github.com/ahmadbuilds/SlopGuard/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/ahmadbuilds/SlopGuard/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/ahmadbuilds/SlopGuard/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/ahmadbuilds/SlopGuard/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/ahmadbuilds/SlopGuard/releases/tag/v0.1.0

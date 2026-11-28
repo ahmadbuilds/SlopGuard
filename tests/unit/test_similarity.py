@@ -280,7 +280,7 @@ def test_packaged_index_lookup_average_is_under_fifty_milliseconds() -> None:
 
 
 def test_weak_matches_are_reported_for_scoring_to_weigh() -> None:
-    """These low-confidence matches should score below a distance-1 top-100 match in SG-05."""
+    """These low-confidence matches should score below a distance-1 top-100 match."""
 
     index = PopularPackageIndex.load()
     settings = SimilaritySettings()

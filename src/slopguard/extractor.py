@@ -80,7 +80,7 @@ def extract_dependencies(
 ) -> ExtractionResult:
     """Return dependencies added in requirements, pyproject, and Python imports.
 
-    Candidate rows use SG-01's result shape. Registry state is unknown and the
+    Candidate rows use the dependency result shape. Registry state is unknown and the
     score is a neutral placeholder until the later analysis stages run.
     """
 
