@@ -1,4 +1,4 @@
-name: SlopGuard
+name: SlopGuard PyPI Dependency Check
 description: Check pull-request Python dependencies for missing and look-alike PyPI packages.
 author: Ahmad Builds
 branding:
