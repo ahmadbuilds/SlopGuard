@@ -1,6 +1,6 @@
 # SlopGuard: PASS
 
-Found 1 dependencies: 1 pass, 0 warn, and 0 block.
+Found 1 dependency: 1 pass, 0 warn, and 0 block.
 
 Policy: mode block; warn at 40; block at 80; unknown results pass; config source slopguard\.toml.
 
@@ -12,7 +12,7 @@ Counts by severity: info 0, low 0, medium 0, high 1, critical 0.
 All dependency metadata was verified.
 
 <details>
-<summary>Passed dependencies (1)</summary>
+<summary>Passed 1 dependency</summary>
 
 - trusted\-unknown (allow-listed: Internal release pending; no expiry)
 

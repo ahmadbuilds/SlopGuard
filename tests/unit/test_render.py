@@ -224,6 +224,52 @@ def test_summary_goldens() -> None:
             assert "policy decision pass" in actual
 
 
+def test_summary_pluralizes_dependency_count() -> None:
+    reports = (
+        _report(),
+        _report([_result("one-package", decision="pass")]),
+        _report(
+            [
+                _result("first-package", decision="pass"),
+                _result("second-package", decision="pass"),
+            ]
+        ),
+    )
+
+    summaries = [
+        render_summary(report, context=CONTEXT, settings=OutputSettings()) for report in reports
+    ]
+
+    assert "Found 0 dependencies:" in summaries[0]
+    assert "Found 1 dependency:" in summaries[1]
+    assert "Passed 1 dependency" in summaries[1]
+    assert "Found 2 dependencies:" in summaries[2]
+    assert "Passed 2 dependencies" in summaries[2]
+
+
+def test_summary_pluralizes_other_counted_items() -> None:
+    reports = [
+        _result(
+            f"unknown-package-{index}",
+            decision="warn",
+            registry_exists=None,
+            registry_status="transient_error",
+        )
+        for index in range(2)
+    ]
+    settings = OutputSettings(
+        max_findings_in_summary=1, max_unverified_in_summary=1, max_annotations=1
+    )
+    report = _report(reports)
+
+    summary = render_summary(report, context=CONTEXT, settings=settings)
+    annotations = render_annotations(report, context=CONTEXT, settings=settings)
+
+    assert "1 additional unverified result omitted." in summary
+    assert "1 additional finding omitted." in summary
+    assert annotations[-1] == "::notice::1 more finding in the job summary"
+
+
 def test_annotations_golden_and_count_cap() -> None:
     report = _report(
         [

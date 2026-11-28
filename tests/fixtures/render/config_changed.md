@@ -1,6 +1,6 @@
 # SlopGuard: WARN
 
-Found 1 dependencies: 0 pass, 1 warn, and 0 block.
+Found 1 dependency: 0 pass, 1 warn, and 0 block.
 
 Policy: mode block; warn at 40; block at 80; unknown results pass; config source slopguard\.toml.
 The configuration changed in this pull request; the base-branch policy was used.
