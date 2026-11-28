@@ -90,10 +90,11 @@ def test_action_ignores_uv_configuration() -> None:
 def test_example_keeps_comment_opt_in_and_contents_read_only() -> None:
     example = _load_yaml(ROOT / "examples/workflow.yml")
     assert example["permissions"] == {"contents": "read"}
-    assert example["jobs"]["slopguard"]["steps"][-1]["with"].get("comment") is None
+    assert example["jobs"]["slopguard"]["timeout-minutes"] == "10"
+    assert example["jobs"]["slopguard"]["steps"][-1].get("with", {}).get("comment") is None
     source = (ROOT / "examples/workflow.yml").read_text(encoding="utf-8")
     assert "# pull-requests: write" in source
-    assert '# comment: "true"' in source
+    assert '#   comment: "true"' in source
 
 
 def test_release_reuses_ci_workflow_and_ci_supports_workflow_call() -> None:

@@ -1,371 +1,123 @@
 # Architecture
 
-## Overview and data flow
+SlopGuard checks Python dependency names added by a pull request. It compares those names with PyPI metadata and a local popularity snapshot, then reports evidence and a policy decision. The scanner treats repository content and registry responses as data; it does not install or execute candidate packages.
 
-SlopGuard checks Python dependencies added by a pull request for names that do not exist on PyPI
-and names that imitate popular packages. The pipeline extracts dependency additions from changed
-files, looks up project metadata on PyPI, and passes structured evidence to later similarity,
-scoring, and presentation stages.
+## Overview
 
-The extractor and response parser are pure: they parse input text and JSON but never install,
-import, or execute a package. The registry client reads PyPI project JSON only. Registry failures
-remain unknown and do not become evidence that a project is absent or malicious. The repository
-implements extraction, bounded Git reads, scan orchestration, bounded PyPI lookup, merging registry
-evidence, offline look-alike detection, configuration and scoring. CLI presentation and the
-published GitHub Action compose the scan as a CLI and composite action.
+```mermaid
+flowchart LR
+    Event[Pull request event] --> Git[Git merge-base diff]
+    Git --> Extract[Dependency extraction]
+    Extract --> Registry[PyPI JSON lookup]
+    Extract --> Similarity[Local popularity snapshot]
+    Registry --> Score[Evidence and policy]
+    Similarity --> Score
+    Score --> Render[Result rendering]
+    Render --> Outputs[JSON report, summary, annotations]
+    Render --> Comment[Optional sticky PR comment]
+```
 
-## Result contract
+A pull-request scan uses the base and head commits from the event. It reads the effective policy and allow-list from the base commit, so a proposed configuration change cannot loosen the rules used to evaluate itself. The diff is calculated from the merge base.
 
-Contract version `1.1.0` is defined by
-[`src/slopguard/schemas/dependency-result.schema.json`](src/slopguard/schemas/dependency-result.schema.json).
-The package exposes the typed `DependencyResult` shape and `load_result_schema()` through
-`slopguard.contracts`. Checked-in JSON contract examples are in `tests/fixtures/contract/`.
-Serialized consumers should validate results against the JSON Schema.
+## Module map
 
-The scan report is defined by
-[`src/slopguard/schemas/scan-report.schema.json`](src/slopguard/schemas/scan-report.schema.json)
-and `load_scan_report_schema()`. Its fixture is `tests/fixtures/contract/scan-report.json`; each
-entry in `results` references the dependency-result schema.
-
-### Fields
-
-| Field | Meaning |
+| Module or path | Responsibility |
 | --- | --- |
-| `contract_version` | Contract version, currently `1.1.0`. |
-| `policy` (scan report) | Effective base-branch mode, warning and block thresholds, and unknown-registry behavior used for this scan. |
-| `requested_name` | Exact name found in the input manifest or source. |
-| `normalized_name` | PEP 503 canonicalized name: lowercase and each run of `.`, `_`, or `-` replaced by `-`. |
-| `registry_exists` | `true` or `false` after a successful PyPI lookup; `null` if a timeout, rate limit, or other lookup failure prevents a conclusion. |
-| `registry_status` | Optional explicit state: `exists`, `not_found`, `transient_error`, or `malformed_response`. This distinguishes an unknown lookup from a confirmed 404. |
-| `registry_metadata` | Optional structured first/latest upload timestamps, release count, project URLs, maintainer hints, and source hints from PyPI JSON metadata. Missing fields remain `null` or empty. |
-| `registry_diagnostics` | Optional request latency, attempt count, HTTP status, retry-after/rate-limit headers, and safe error detail for evaluation. |
-| `metadata_evidence` | Sourced, human-readable facts. Each item includes an evidence kind, summary, source, and confidence from 0 to 1. |
-| `similarity_candidates` | Candidate PyPI names with normalized similarity from 0 to 1, optional existence state, edit distance, popularity rank, and match kind. |
-| `score_contributions` | Optional additive points and explanation for each of the five scoring signals. |
-| `decision` | Optional `pass`, `warn`, or `block` result from the policy stage. Missing means not evaluated. |
-| `allowlisted` | Optional boolean indicating an active allow-list entry matched the package. |
-| `allowlist` | Optional active exception reason and ISO expiry date (or `null` when it has no expiry). |
-| `risk_score` | Aggregated risk from 0 (lowest) to 100 (highest). |
-| `severity` | `info`, `low`, `medium`, `high`, or `critical`. |
-| `remediation` | Actionable explanation for a developer reviewing the finding. |
-| `source_locations` | Optional source file, 1-based line, and source kind for PR annotations. Multiple locations are retained when the same normalized package appears more than once. |
+| [__init__.py](src/slopguard/__init__.py) | Package version and public package metadata. |
+| [cli.py](src/slopguard/cli.py) | CLI arguments, event context, scan invocation, report files, workflow outputs, summaries, and annotations. |
+| [config.py](src/slopguard/config.py) | TOML parsing, discovery, validation, and immutable configuration. |
+| [contracts.py](src/slopguard/contracts.py) | Typed dependency results, scan reports, diagnostics, and policy summaries. |
+| [extractor.py](src/slopguard/extractor.py) | Added dependency and absolute Python import extraction; local-module recognition. |
+| [git.py](src/slopguard/git.py) | Bounded commit, tree, diff, and blob reads without a shell. |
+| [github.py](src/slopguard/github.py) | Optional sticky pull-request comment API client and bounded pagination. |
+| [import_names.py](src/slopguard/import_names.py) | Import-to-distribution names from packaged data and reviewed overrides. |
+| [pypi.py](src/slopguard/pypi.py) | Canonical package names and public PyPI JSON endpoint construction. |
+| [registry.py](src/slopguard/registry.py) | HTTPS transport, request bounds, retries, and PyPI response parsing. |
+| [registry_result.py](src/slopguard/registry_result.py) | Registry metadata and sourced evidence merged into a dependency result. |
+| [render.py](src/slopguard/render.py) | Bounded Markdown summaries, annotations, and comment content. |
+| [scan.py](src/slopguard/scan.py) | Scan orchestration, base-branch policy, lookup scheduling, and result assembly. |
+| [scoring.py](src/slopguard/scoring.py) | Explainable score contributions, severity, allow-list handling, and policy decisions. |
+| [similarity.py](src/slopguard/similarity.py) | Offline look-alike matching against the packaged popularity snapshot. |
+| [schemas/](src/slopguard/schemas/) | JSON Schemas for dependency results and complete scan reports. |
+| [data/](src/slopguard/data/) | Popularity data, import-name mappings, and standard-library names shipped with the package. |
 
-### MVP scope and threat model assumptions
+## Pull-request scan flow
 
-- The MVP inspects Python dependencies resolved through the public PyPI registry. It does not
-  install or execute packages.
-- The initial threat is dependency-name confusion, including typosquatting and suspiciously
-  similar package names. Metadata signals are evidence, not proof of malicious intent.
-- Registry requests are anonymous, read-only, and time bounded. No credentials belong in the
-  package, configuration example, CI, or sample output.
-- Network failures, rate limits, and incomplete metadata are represented as unknown evidence. They
-  must not be converted into `registry_exists: false` or a malicious verdict.
-- Registry lookup status and metadata diagnostics are supporting facts only; applying them never
-  changes `risk_score` or `severity`.
-- The library defaults to `warn`. `block` mode may block at the configured block threshold, subject
-  to the non-configurable unknown-registry and import-only safeguards described below.
-
-### Severity and enforcement
-
-The score is the sum of five independently explained signals, clamped to the contract's 0–100
-range and rounded to two decimal places: PyPI not-found, look-alike, recent first release, few
-releases, and missing source links. Default weights are `60`, `35`, `25`, `10`, and `10` in that
-order; the new-package window is 30 days, and the few-release limit is one release. Look-alike
-points use default edit-distance factors 1.0 for distance 1 and 0.5 for distance 2; separator-only
-matches use factor 1.0. The popularity multiplier is 1.0 through rank 100 and falls linearly to
-0.3 at the configured similarity `top_n`. Missing signal evidence adds zero points with an
-explanation; absence of evidence is never treated as safe credit.
-
-Default severity lower bounds are low 20, medium 40, high 60, and critical 80; scores below low are
-info. Default policy thresholds are warn 40 and block 80. The library defaults to `mode = "warn"`;
-blocking requires `mode = "block"` and a score at or above the block threshold. Scores and
-contributions are still computed for allow-listed names, but an active allow-list entry takes
-precedence and sets `decision = "pass"`.
-Expired allow-list entries are ignored for decisions and can be returned by configuration helpers
-so a caller can report them as warnings.
-
-Two policy invariants cannot be configured away: transient or malformed registry results never
-block (and warn at minimum when `on_unknown = "warn"`), and import-only findings never block.
-These controls prevent unavailable PyPI evidence or an import-only heuristic from causing a hard
-failure. Scoring is evidence for review, not a malware verdict.
-
-Configuration is loaded in this order: explicit path, repository `slopguard.toml`, the
-`[tool.slopguard]` table in `pyproject.toml`, then built-in defaults. `parse_config` accepts TOML
-text without file access. A PR scan reads policy from the target base SHA, not the proposed head
-configuration, so a PR cannot loosen the policy used to evaluate itself.
-
-The `[output]` table bounds summary findings, unverified names, field lengths, annotation counts,
-comment request timeouts, and comment pagination. These settings are validated with the rest of the
-base-branch configuration. GitHub's 1 MiB per-step job-summary ceiling and 65,536-character
-issue-comment ceiling are fixed platform limits and cannot be raised through configuration.
-
-### Compatibility
-
-Adding an optional field is backward compatible. Renaming/removing a required field, changing its
-meaning or type, or changing score/severity semantics requires a contract version change and
-coordination with all producers and consumers before merge.
-
-Similarity candidates may include `edit_distance` (non-negative integer), `popularity_rank`
-(one-based integer), and `match_kind` (`edit` or `separator`). These optional fields explain how a
-candidate was selected; they do not themselves change risk or severity.
+1. The CLI reads the GitHub event and validates that the event is supported.
+2. The Git adapter resolves the base, head, and merge base, then lists changed paths and bounded file contents.
+3. The extractor compares supported files and emits newly added or replacement dependencies with source locations.
+4. Configuration comes from the base commit. A changed head configuration is reported, but does not decide its own scan.
+5. Active allow-list entries pass with their reason and expiry and are not sent to PyPI. Other valid distribution names receive bounded registry lookups.
+6. Similarity matching uses the checked-in popularity snapshot and makes no network request.
+7. The scorer combines available evidence and applies the configured policy. Unknown registry results stay unverified and cannot block on their own.
+8. The CLI writes the JSON report, GitHub job summary, workflow annotations, and the optional sticky comment.
 
 ## Dependency extraction
 
-`slopguard.extractor.extract_dependencies` is a pure, offline extractor. Give it `ChangedFile`
-values containing the file path, base text, and head text. It compares the two versions and emits
-only added or replacement dependencies from the head version. Deletions and unchanged dependencies
-are ignored. Callers can pass `local_modules` to exclude first-party module names;
-`local_modules_from_paths` builds this set from repository paths and an optional project name.
+The extractor parses the base and head contents as data and reports additions. Deletions and unchanged declarations are not findings.
 
-Each normalized result conforms to the dependency-result schema. At extraction time,
-`registry_exists` is `null`, evidence and similarity candidates are empty, and the score is a neutral
-placeholder. Later registry and scoring stages must populate those fields before making policy
-decisions. `source_locations` records the file, 1-based line, and source kind; duplicate package
-names are emitted once with all their locations.
+| Input | Behavior |
+| --- | --- |
+| Requirements and constraints files | Reads supported PEP 508 requirement lines, continuations, comments, markers, extras, and hashes. |
+| pyproject.toml | Reads PEP 621 dependencies, optional dependencies, PEP 735 dependency groups, and build-system requirements. |
+| Python files | Parses absolute import statements with Python's AST and maps known import names to distributions. |
+| setup.py, setup.cfg, and Pipfile | Reports that manual review is needed; it does not evaluate or execute these files. |
 
-An extracted result is unscored: it has no `decision`. Consumers in SG-06 and SG-07 must treat a
-result without `decision` as not evaluated, never as passed.
-
-### Supported syntax
-
-- Requirements and constraints files named with `requirement(s)` or `constraint(s)` and ending in
-  `.txt` or `.in`, plus any `.txt` or `.in` file under a `requirements` directory. PEP 508 names,
-  extras, version specifiers, markers, comments, inline comments, continued logical lines, and
-  per-requirement `--hash` options are supported.
-- PEP 621 `project.dependencies` and `project.optional-dependencies` arrays, PEP 735 arrays in
-  `[dependency-groups]`, and `[build-system].requires` in `pyproject.toml`. Dependency-group
-  `{include-group = "..."}` references are skipped because they are group references, not package
-  names.
-- Python `import` and absolute `from` statements found by parsing the complete base and head syntax
-  trees. Imports inside strings, relative imports, `__future__`, standard-library imports, and
-  known local modules are excluded. Known import names and dotted prefixes are mapped to
-  distributions, including `cv2` to `opencv-python`, `PIL` to `Pillow`, `yaml` to `PyYAML`, and
-  `google.protobuf` to `protobuf`. An unmapped ordinary import is emitted as an import-only finding;
-  downstream scoring should treat import-only findings as warn-only. Unmapped `google`, `azure`,
-  `zope`, and `backports` namespace roots produce a warning instead of a guessed package name.
-- Changes in `setup.py`, `setup.cfg`, and `Pipfile` produce a manual-review warning; their
-  dependency syntax is not interpreted, and `setup.py` imports are not treated as dependencies.
-
-The import-name map is packaged data: `data/import_names.json` is generated manually from the ranked
-popular-package snapshot by reading each project's latest PyPI release metadata and inspecting its
-wheel ZIP directory through bounded HTTPS byte ranges. The generator prefers `py3-none-any` wheels,
-then any wheel; it reads `top_level.txt` when present and otherwise derives names from wheel paths,
-including extension modules and dotted package prefixes. It ignores metadata/data directories,
-cache directories, invalid identifiers, and common test, documentation, example, benchmark, and
-script directories. No wheel is downloaded whole, extracted, installed, imported, or executed.
-For each module, the highest-ranked provider wins; its mapping is omitted only when a top-level
-module's canonical distribution name equals its canonical module name. Remaining providers are
-listed as conflicts. A directory is a shared namespace when at least two distributions contribute
-it and the highest-ranked contributor lacks its `__init__.py`. Lower-ranked add-ons do not turn a
-real package from a higher-ranked provider into a namespace. Namespace expansion runs globally only
-below shared top-level roots; it skips shared paths and traverses namespace directories to the first
-real package or module, up to its named depth limit. The generated header records the ignored
-top-level directory names. Reviewed exceptions belong in
-`data/import_name_overrides.json`; overrides win over generated entries. Run
-`uv run python scripts/generate_import_names.py` when intentionally refreshing the map, review the
-result and conflicts, and keep this generator out of CI and release workflows. Central directories
-are capped at 8 MB and 100,000 entries; selected `top_level.txt` data is capped at 1 MB compressed
-and 64 KB uncompressed. The map is heuristic: it cannot cover packages outside the popular-package
-snapshot, source-only releases without wheels, or modules created during installation.
-Standard-library names are a generated union across Python versions plus the current runtime list,
-so imports removed in newer Python versions remain excluded.
-
-Direct URLs, VCS/editable requirements, include directives, dynamic dependencies, Poetry dependency
-tables, malformed requirements, and malformed TOML are skipped with a file/line warning when their
-changed lines can be located. Global package index options receive a dedicated manual-review
-warning; supported option-only flags that do not identify a package are ignored. Included
-requirements files must be passed separately as changed files. A head Python syntax error produces
-a warning; if only the base file cannot be parsed, its imports are treated as empty and a warning is
-emitted. The extractor does not access the network, resolve markers, infer imports from unchanged
-code, install packages, or execute project code.
-
-## Pull request scan flow
-
-`slopguard.scan.run_scan` accepts a `GitRepository`, repository identifier, base and head commits,
-an injected registry client, and a fixed UTC time. It ensures both commits are available before
-reading trees, then loads policy from the target base tip: an explicit configuration path wins,
-followed by `slopguard.toml`, `[tool.slopguard]` in `pyproject.toml`, and built-in defaults. A
-malformed base configuration stops the scan. `config_changed` compares the base-tip policy with
-the effective head policy, but the head never controls the current decision. Dependency changes
-are still computed from the merge base. The base-tip `project.name` and head tree paths identify
-local imports.
-
-`slopguard.git.GitRepository` invokes Git with argument lists, disables fsmonitor and terminal
-prompts, and bounds each command by time and output. It reads raw NUL-delimited diffs, follows
-rename paths to their base blobs, and skips deleted files, symlinks and submodules. Blobs are size
-checked before reading and decoded as UTF-8; invalid or oversized files become report warnings.
-Shallow clones first fetch missing base/head commits from `origin`, then can be deepened to find a
-merge base up to the target base tip's `git.fetch_depth` limit. Invalid base configuration uses the
-safe default fetch depth and is reported as a configuration error after Git history recovery.
-
-Changed supported files pass through the pure extractor. Active allow-list matches are scored and
-reported as `allowlisted: true` without sending their names to PyPI or using the lookup budget;
-their evidence names the configured exception, reason and expiry. Expired entries are not active,
-so their candidates are looked up normally and an expiry warning is reported. Other registry
-lookups use at most `registry.max_concurrency` workers and `registry.max_lookups` requests per scan.
-Candidates beyond that budget receive a transient unknown result, which can warn but cannot block.
-Similarity and scoring use the base-tip configuration and packaged popularity snapshot. Results
-and warnings are sorted deterministically. A report without a scored decision is an internal error;
-no findings produce a `pass` report with zero counts.
-
-The `evals/` subsystem is a separate, non-runtime toolset and is excluded from the wheel. It builds
-reviewable labels, records live registry responses only in explicit manual commands, and evaluates
-labels offline by replaying those recordings through the same `score_candidate` path used by scans.
-The optional historical-PR collector stores extracted candidates and a separate registry recording
-so PR-level flag rates can also be reproduced without cloning during evaluation. No evaluation
-module is imported by `slopguard`.
-
-To keep processing bounded, non-Python changed files are skipped with a warning when their combined
-base and head content exceeds 2,000 lines or 1,000,000 characters. Python files use AST comparison
-and are subject to the 1,000,000-character cap but not the line cap. The extractor stops and
-returns one warning without partial candidates when the input exceeds 1,000 changed files or
-20,000,000 combined base/head characters.
+Relative imports, standard-library imports, known local modules, and imports inside strings are excluded. Unknown namespace roots produce a warning rather than a guessed package name. See [the extractor](src/slopguard/extractor.py) and [the import-name data](src/slopguard/data/import_names.json) for the current mappings.
 
 ## Look-alike detection
 
-`slopguard.similarity` compares canonical dependency names with the checked-in
-[`popular_packages.json`](src/slopguard/data/popular_packages.json) snapshot. The snapshot is
-derived from the top PyPI packages dataset at
-`https://raw.githubusercontent.com/hugovk/top-pypi-packages/main/top-pypi-packages.min.json`.
-Refresh it manually with `uv run python scripts/update_popular_packages.py`; the script records the
-source update time and retrieval time. Detection itself is offline and never fetches package data.
+The matcher normalizes names and compares them with the packaged popularity snapshot. It handles configured edit-distance and separator variants locally. The snapshot records its source URL, source update date, and retrieval date; refresh it with the repository's update script and review the generated diff. Snapshot age and matching limits are described in [SECURITY.md](SECURITY.md).
 
-The matcher uses bounded optimal string alignment (Damerau-Levenshtein with adjacent transpositions
-counting as one edit). It searches only candidates within the configured length band and uses the
-pre-ranked popularity list to return deterministic matches ordered by edit distance, popularity
-rank, and name. Names that differ only by hyphen separators are marked `separator`; other edits are
-marked `edit`. Similarity is `1 - edit_distance / max(name lengths)`.
+## PyPI lookup
 
-The popularity rule suppresses a dependency name if it is itself within the configured top `top_n`
-snapshot entries. This prevents popular packages from flagging one another. `[similarity]` settings
-in `examples/slopguard.toml` control `top_n`, `min_length`, `max_distance_by_length`, and
-`max_matches`; if `top_n` exceeds the snapshot size, all available entries are used.
+The registry client requests the public PyPI project JSON endpoint for a normalized package name. It does not fetch package files, wheels, source distributions, or release archives.
 
-Detection is limited to names in the top `top_n` entries and to the configured edit distance. It
-does not detect homoglyph substitutions or combosquatting. Snapshot freshness depends on manual
-refreshes: `source_last_update` records the source dataset age and `retrieved_at` records when this
-repository's snapshot was generated, so either can lag current PyPI popularity. The matcher reports
-every match within the configured distance, including weak distance-2 matches to lower-ranked
-packages; the scoring stage decides their weight.
+| Registry status | Meaning |
+| --- | --- |
+| `exists` | PyPI returned a valid project record. |
+| `not_found` | PyPI returned a validated not-found response for the name. |
+| `transient_error` | A timeout, rate limit, connection error, or other temporary failure prevented a result. |
+| `malformed_response` | The response could not be parsed as the expected project record. |
+| `invalid_name` | The candidate is not a valid distribution name and is not queried. |
 
-## PyPI registry lookup
+Only a confirmed not-found response establishes absence. Errors and malformed responses remain unverified. The client bounds request time, retries, response size, and concurrent lookup count through configuration.
 
-`slopguard.registry.PyPIClient` queries the public project JSON endpoint built by
-`slopguard.pypi.project_json_url` for the normalized name. The
-[PyPI JSON API documentation](https://docs.pypi.org/api/json/) describes this response as project
-metadata and release information. SlopGuard reads JSON only; it never fetches distribution URLs,
-installs a package, imports it, or executes candidate code.
+## Scoring and policy
 
-### Returned metadata
+Scoring combines explainable evidence for package absence, name similarity, recent release history, release count, and source links. The active policy sets the warning or blocking behavior and the thresholds. See [examples/slopguard.toml](examples/slopguard.toml) for the defaults and [scoring.py](src/slopguard/scoring.py) for the decision rules.
 
-The response parser extracts:
+An active allow-list entry takes precedence and produces `pass` while retaining the score and recording the exception reason and expiry. An expired entry is looked up normally and reported for review. Unknown or malformed registry results never block; the unknown policy may choose `warn` or `pass`, but the result remains marked unverified. Import-only findings are warn-only.
 
-- `first_release_at` and `latest_release_at`: earliest and latest valid upload timestamps found
-  across release files. These dates are an age proxy, not proof that a project was created or
-  maintained on those exact dates.
-- `release_count`: number of release versions with at least one uploaded file. Empty release
-  entries are excluded.
-- `project_urls`: valid HTTP(S) links from PyPI's `info.project_urls`.
-- `maintainer_hints`: the public maintainer label and owner/maintainer names exposed by PyPI, when
-  available.
-- `source_hints`: project URLs labeled as source/repository/code, plus common source-host links.
+## Output
 
-Publisher-controlled text is bounded while parsing: at most 20 maintainer hints of 200 characters
-each, 50 project URLs with labels up to 100 characters and URLs up to 256 characters, and 20
-source hints are retained. Unicode control (`Cc`) and format/invisible (`Cf`) characters are
-removed. Overlong URLs are dropped; retained text is not HTML- or Markdown-escaped by this layer.
+The scan report is JSON and follows [scan-report.schema.json](src/slopguard/schemas/scan-report.schema.json). The job summary gives the overall decision, effective policy, findings, warnings, and unverified results. Workflow annotations point to changed source locations. When the user enables comments and grants `pull-requests: write`, the GitHub client creates or updates one sticky comment; it skips fork pull requests.
 
-PyPI currently documents the project `releases` object as deprecated and recommends the Index API
-when release listing is needed. If the key is absent, SlopGuard reports release count and upload
-dates as unknown while preserving the successful `exists` result. PyPI's JSON API documentation
-also notes that metadata comes from values supplied at upload and may not match the uploaded files'
-contents.
+Summary, annotation, and comment output is bounded and escapes report-derived text. The comment client uses the runner's `GITHUB_API_URL`, including on GitHub Enterprise Server. See [render.py](src/slopguard/render.py) and [github.py](src/slopguard/github.py).
 
-### Lookup states
+## Result contract and versioning
 
-| State | Meaning | `registry_exists` |
-| --- | --- | --- |
-| `exists` | HTTP 200 with valid project metadata and a matching project name. | `true` |
-| `not_found` | PyPI returned HTTP 404. | `false` |
-| `transient_error` | Timeout, transport failure, rate limit, or other non-success HTTP response. | `null` |
-| `malformed_response` | Invalid JSON or response structure, unsupported content encoding, a mismatched project name, truncated gzip, or a response exceeding a size cap. | `null` |
-| `invalid_name` | The requested name fails `canonicalize_name(..., validate=True)`; no request is sent. | `null` |
+The scan report records the effective base-branch policy in `policy`. Dependency results can include `allowlisted` and an `allowlist` object with the exception reason and expiry.
 
-Unknown states do not add not-found evidence and do not alter the candidate's risk score or
-severity. A confirmed 404 is recorded as a sourced fact; it is not, by itself, proof of malicious
-intent.
+The dependency result contract is version `1.1.0`, defined by [dependency-result.schema.json](src/slopguard/schemas/dependency-result.schema.json). The scan report has its own schema and embeds dependency results. Typed shapes live in [contracts.py](src/slopguard/contracts.py), with valid examples in [tests/fixtures/contract/](tests/fixtures/contract/).
 
-### Request bounds and diagnostics
+Optional fields can be added when existing consumers can ignore them. Changing a field's type or meaning, removing a field, or changing decision semantics requires a contract version update and coordinated fixture and consumer changes. Keep the schemas, Python types, fixtures, and this section aligned in the same change.
 
-Each `PyPIClient` has a per-attempt total request deadline, a 3-second timeout, one retry by
-default, and exponential backoff from 100 ms capped at 500 ms. These policy values are configurable
-in the `[registry]` table; hard ceilings of 10 seconds, two retries, and one second of backoff
-cannot be raised by config. HTTP 408, 429, 5xx responses, and transport exceptions are retried
-within those bounds. A numeric or HTTP-date `Retry-After` value is also capped by the configured
-maximum delay.
+## Security model and trust boundaries
 
-The request asks PyPI for gzip. Response transfer bytes are capped at 8 MB (compressed when gzip),
-and decoded documents at 32 MB. Gzip is decoded incrementally with an output limit; identity
-responses are also checked against the document cap. Oversized, truncated, or unsupported
-responses remain unknown (`malformed_response`), never `not_found`.
+Pull-request paths, manifests, source text, configuration, event payloads, and PyPI responses are untrusted. SlopGuard parses supported inputs but never imports or executes the checkout, dependency candidates, archives, setup scripts, or build hooks. Git reads use bounded operations and argument arrays.
 
-Each client caches results by normalized name behind a lock. Concurrent lookups for the same name
-share one in-flight request, and callers receive independent copies of the result. Transport
-exceptions are reported by exception class only so exception text cannot echo untrusted details.
+The policy and allow-list come from the target base commit. Workflows use `pull_request`, declare least-privilege permissions, pin third-party actions, and disable checkout credential persistence. The scanner sends normalized package names to PyPI but does not upload source files, filenames, or pull-request text. Optional comments send rendered findings to the GitHub API and require an explicit write permission. Timeouts, malformed data, rate limits, and exhausted lookup budgets remain unverified.
 
-`registry_diagnostics` records total latency including retries and backoff, attempt count, final
-HTTP status, available `Retry-After`, `RateLimit-Remaining`, and `X-RateLimit-Remaining` headers,
-and a bounded error/recovery note. The implementation uses an injectable HTTP transport so tests
-can cover all states without network access. The complete example is
-[`registry-result.json`](tests/fixtures/contract/registry-result.json).
+Repository-level Actions settings are a separate boundary. Keep fork workflows from receiving write tokens or secrets. The [security policy](SECURITY.md) explains reporting, data use, controls, and limitations; the [security review](SECURITY_REVIEW.md) records the assessment and verified settings.
 
-### Limitations
+## Evaluation subsystem
 
-The client connects directly and ignores `HTTP_PROXY` and `HTTPS_PROXY`. On a runner that requires
-a proxy, every lookup becomes `transient_error` (`unknown`); it is never treated as `not_found` and
-never blocks a merge.
+The evaluation tools in [evals/](evals/README.md) build and verify labels, record registry responses through explicit manual commands, and replay scans offline. They are not imported into the runtime package or included in its wheel. CI reproduces the committed evaluation outputs and runs the offline classifier checks.
 
-## Security model
+## Extending SlopGuard
 
-### Threat model and trust boundaries
-
-SlopGuard defends pull-request review against suspicious dependency names and unsafe or misleading
-scan results. It treats changed manifests, Python source, repository paths, configuration changes,
-and PyPI responses as untrusted data. The policy and allow-list come from the target base SHA, so a
-pull request cannot weaken the rules used to evaluate itself. Git content is read as bounded blobs;
-the scanner does not import or execute the checkout, candidate packages, archives, setup scripts,
-or project build hooks. Python is parsed with `ast`, TOML with `tomllib`, and requirements with
-`packaging`.
-
-The Action runs for `pull_request`, uses read-only `contents` permission, pins third-party Actions,
-does not persist checkout credentials, and passes inputs through environment variables and
-argument arrays. Its workflow files reference no repository secrets. GitHub's repository-level
-fork settings are a separate trust boundary: an administrator must confirm that fork workflows do
-not receive write tokens or secrets. These settings were not readable during the VOI-118 review.
-
-Registry lookups use only the public PyPI JSON host over verified HTTPS. Requests contain a
-normalized package name and a versioned repository User-Agent; source files, paths, pull-request
-text, and registry credentials are not sent. Active allow-list names are not queried or charged to
-the lookup budget. Publisher-controlled registry metadata remains untrusted and is bounded, parsed
-locally, and used only as review evidence. Timeouts, rate limits, malformed data, and exhausted
-budgets remain unknown, never a claim that a package is absent. When the optional sticky PR comment
-is enabled, the CLI sends the rendered bounded report to the HTTPS API origin supplied by
-`GITHUB_API_URL`, authenticated by the token supplied in the configured environment variable. It
-skips fork pull requests and caps reads, request timeouts, retry delay and pagination. Summary and
-comment text escape untrusted Markdown; output files use bounded, collision-resistant delimiters.
-
-### Reviewed findings and limits
-
-VOI-118 resolved the nested-module false negative while preserving same-directory helper imports,
-kept unknown registry results visible even under a pass policy and summary truncation, and stopped
-active allow-list names from leaking to PyPI. The review record and regression evidence are in
-[`SECURITY_REVIEW.md`](SECURITY_REVIEW.md). Its remaining operational check is confirmation of the
-repository-level fork settings by an administrator.
-
-SlopGuard is a dependency-name review aid, not a malware or vulnerability scanner. It does not
-resolve all dependency formats or transitive dependencies, inspect package artifacts, verify
-publisher identity or provenance, or detect every homoglyph/combosquatting attack. Old popular
-malware, compromised maintainers, dependency confusion on private indexes, and optional secret
-scanning are outside this tool's coverage. The optional PR comment requires `pull-requests: write`
-and is always skipped for fork pull requests. See [SECURITY.md](SECURITY.md) for the complete threat
-scope, limitations and private vulnerability-reporting instructions.
+- Add a dependency format in the extractor and cover additions, replacements, deletions, and unsupported syntax with fixtures.
+- Add or change a scoring signal in the scoring and configuration layers, then update the contract-facing documentation and evaluation method.
+- Use the injectable registry transport for any registry behavior. Keep request limits and failure states explicit; do not add package installation or execution.
+- Update import-name mappings through their data-generation and review workflow. Do not hand-edit generated mappings.

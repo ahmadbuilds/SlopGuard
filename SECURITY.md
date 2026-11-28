@@ -1,75 +1,61 @@
 # Security policy
 
-SlopGuard helps reviewers identify newly added Python dependency names that are missing from PyPI
-or resemble popular packages. It reads changed-file text and public PyPI JSON metadata. It never
-installs or executes a dependency under review, downloads its package archive, or runs its setup
-script. The GitHub Action installs SlopGuard from its own locked project so it can run the scanner;
-it does not install dependencies from the scanned checkout.
+SlopGuard helps reviewers identify newly added Python dependency names that do not exist on PyPI or resemble popular packages. It is a review aid; it does not establish that a package is safe.
 
-## Threat model and controls
+## Supported versions
 
-The scanner treats pull-request paths, file contents, manifest entries, project metadata and PyPI
-responses as untrusted data. It bounds Git output and object sizes, parses supported dependency
-syntax without running it, and uses argument arrays for Git commands. Git subprocesses have time
-and output limits and do not use a shell. Registry requests use HTTPS to the fixed `pypi.org`
-host, certificate verification, bounded retries and a total deadline; response and decompressed
-document sizes are capped. No PyPI response can cause a package archive, import, or setup script to
-run.
+| Version | Support |
+| --- | --- |
+| 1.x | Security reports accepted and fixes provided. |
+| Earlier than 1.0 | Not supported. Upgrade to a current 1.x release before reporting a version-specific issue. |
 
-For a pull-request scan, the policy is loaded from the base branch tip, so a pull request cannot
-weaken the policy that evaluates itself. The scan workflows trigger on `pull_request`, declare only
-`contents: read`, pin third-party Actions to commit SHAs and set checkout credentials to
-`persist-credentials: false`. The CLI rejects `pull_request_target`. Its Action inputs reach shell
-steps through environment variables and argument arrays. Markdown output escapes package names,
-paths and diagnostics; GitHub outputs use random multiline delimiters.
+## Report a vulnerability privately
+
+Use [GitHub's private vulnerability reporting form](https://github.com/ahmadbuilds/SlopGuard/security/advisories/new). Include the affected release or commit, the workflow event, a concise impact description, and steps to reproduce. Remove tokens and other secrets from logs before sharing them.
+
+We aim to acknowledge a report within seven days and aim to release a fix within 90 days. We disclose fixed issues through a GitHub Security Advisory and credit the reporter unless they prefer not to be named.
+
+## Scope
+
+Report vulnerabilities that could cause code execution, token exposure, a policy bypass, unsafe handling of untrusted input, or injection into a GitHub summary, annotation, or pull-request comment.
+
+A missed look-alike or a false positive is a detection-quality issue, not a security vulnerability. Use the [false-negative form](https://github.com/ahmadbuilds/SlopGuard/issues/new?template=false_negative.yml) or [false-positive form](https://github.com/ahmadbuilds/SlopGuard/issues/new?template=false_positive.yml).
+
+## Security model in brief
+
+- SlopGuard parses changed manifests and Python source as data. It never installs or executes candidate packages, project code, or package archives.
+- The scan reads policy from the base branch so a pull request cannot weaken its own evaluation.
+- The scanner sends normalized names to the public PyPI JSON API; it does not upload repository source or pull-request text.
+- Network failures and malformed responses remain unverified. They are not treated as proof that a package does not exist.
+- The action uses `pull_request`, read-only contents by default, SHA-pinned third-party actions, and checkout with persisted credentials disabled.
+- Sticky comments are opt-in, require `pull-requests: write`, and are skipped on fork pull requests.
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the complete security model and trust boundaries.
 
 ## Data and network use
 
-For each candidate without an active allow-list exception, SlopGuard sends the canonicalized
-package name in a request path to the public PyPI JSON API. Active allow-listed names are not sent
-to PyPI or counted against the lookup budget; the local report records the configured exception
-reason and expiry. Expired entries are looked up normally and reported as warnings. The User-Agent
-identifies the SlopGuard version and repository. Source files, filenames, repository contents,
-pull-request titles and bodies are not uploaded by SlopGuard.
-Registry metadata is parsed locally and included in the local JSON report as bounded hints. The
-GitHub Action writes its report and summary to the paths configured by the workflow. With the
-documented full-history checkout, SlopGuard needs no GitHub fetch; its bounded fallback fetches
-missing commit objects from the checkout's configured origin. An optional sticky PR comment is
-disabled by default; enabling it requires `pull-requests: write`. The Action skips comments on fork
-pull requests regardless of token availability.
+| Destination | When it is contacted | Data sent |
+| --- | --- | --- |
+| Public PyPI JSON API | For each valid, non-allow-listed candidate | Normalized package name in the request path and a versioned repository User-Agent. No source, filenames, or pull-request text. |
+| GitHub API or GitHub Enterprise Server API | Only when sticky comments are enabled | The action's GitHub token and rendered comment contents. The action uses the runner's `GITHUB_API_URL`. |
+| Configured Git remote | Only when the checkout lacks commit objects and the bounded fallback is needed | Git fetch requests for the missing history. Full-history checkout avoids this fallback. |
 
-Fork pull requests normally receive a read-only `GITHUB_TOKEN` and no repository secrets, but
-repository-level Actions settings can override fork behavior. Keep settings that send write tokens
-or secrets to fork workflows disabled. See [GitHub's fork workflow policy](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflows-in-forked-repositories).
+The action writes its JSON report and summary to the runner workspace or the paths selected by the workflow. Registry metadata and generated reports stay on the runner unless the workflow uploads them or comments are enabled.
 
-## Limits
+## Repository protections
 
-- Registry metadata is supplied by package publishers and is not proof that a package is safe.
-- The scanner analyzes supported dependency declarations and Python imports in the pull-request
-  diff. Unsupported dependency formats produce a warning; transitive dependency resolution,
-  artifact inspection, vulnerability analysis, signatures and publisher provenance are outside its
-  scope.
-- The popularity detector uses a checked-in top-5,000 package snapshot that can become stale. It
-  can produce false positives and false negatives and does not detect homoglyph or combosquatting
-  attacks.
-- Repository-wide local-module recognition treats root-level modules and modules under `src/` and
-  `lib/` as global import roots. Modules in any directory are also local to importers in that same
-  directory, so helpers such as `scripts/helpers.py` stay local to `scripts/` while
-  `src/unrelated/requests.py` cannot mask an application import. Projects with custom
-  runtime import paths can receive a false positive until those roots are explicitly supported;
-  SlopGuard errs toward reporting the candidate instead of suppressing it as local.
-- Timeouts, rate limits, connection errors and malformed responses are unknown. They are never
-  treated as proof that a package is absent. The configured `on_unknown` policy can choose `pass`,
-  but the report still marks the registry result unverified and the summary calls it out.
-- Secret scanning is not implemented. It is a separate optional feature and is not enabled by this
-  Action.
-- PyPI state can change between runs, so results are deterministic for fixed inputs except for the
-  live registry response.
+Repository settings were verified by Muhammad Ahmad on 2026-11-28:
 
-The review record, including findings and verification evidence, is in
-[SECURITY_REVIEW.md](SECURITY_REVIEW.md). SlopGuard is a review aid, not a security guarantee.
+- CodeQL default setup analyzes Python and GitHub Actions.
+- Secret scanning and push protection are enabled, and private vulnerability reporting is available.
+- Dependabot alerts and updates are enabled.
+- Rulesets protect `main` and `v*.*.*` release tags and require status checks.
+- The Actions policy requires full-SHA references and restricts Actions to an allow-list.
 
-## Reporting a vulnerability
+The checked-in workflows also use least-privilege permissions. The action does not require repository secrets for scanning. See the [security review](SECURITY_REVIEW.md) for the complete repository configuration assessment.
 
-To report a vulnerability privately, use GitHub Security Advisories for this repository. Do not
-open a public issue containing exploit details before maintainers have had a chance to respond.
+Use the private reporting form above to disclose a vulnerability; do not post it in a public issue.
+
+## Security review
+
+See [SECURITY_REVIEW.md](SECURITY_REVIEW.md) for the assessment, findings, verification evidence, and residual risks.

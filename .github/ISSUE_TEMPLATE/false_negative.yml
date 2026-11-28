@@ -1,0 +1,42 @@
+name: False negative
+description: Report a suspicious dependency name that SlopGuard did not warn about.
+title: "[False negative]: "
+body:
+  - type: input
+    id: package
+    attributes:
+      label: Package name
+      description: Enter the requested dependency name.
+    validations:
+      required: true
+  - type: input
+    id: pypi_url
+    attributes:
+      label: PyPI project URL
+      description: Link to the project or name that SlopGuard should have flagged.
+      placeholder: https://pypi.org/project/example/
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Workflow and policy
+      description: Include the action configuration and relevant policy settings.
+      render: yaml
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: SlopGuard summary or report
+      description: Paste the relevant output after removing tokens and private data.
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: reason
+    attributes:
+      label: Why is this name suspicious?
+      description: Include evidence that helps maintainers reproduce and assess the missed finding.
+    validations:
+      required: true

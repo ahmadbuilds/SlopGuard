@@ -1,0 +1,34 @@
+name: False positive
+description: Report a legitimate dependency that SlopGuard warned about or blocked.
+title: "[False positive]: "
+body:
+  - type: input
+    id: package
+    attributes:
+      label: Package name
+      description: Enter the requested name and, if different, the normalized name.
+    validations:
+      required: true
+  - type: input
+    id: pypi_url
+    attributes:
+      label: PyPI project URL
+      description: Link to the legitimate project's PyPI page.
+      placeholder: https://pypi.org/project/example/
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: SlopGuard summary
+      description: Include the relevant finding and evidence from the job summary.
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Expected result and context
+      description: Explain why the package should pass and include its source location.
+    validations:
+      required: true

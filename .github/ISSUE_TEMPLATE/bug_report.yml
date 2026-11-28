@@ -1,0 +1,36 @@
+name: Bug report
+description: Report unexpected SlopGuard or GitHub Action behavior.
+title: "[Bug]: "
+body:
+  - type: input
+    id: version
+    attributes:
+      label: SlopGuard release or commit SHA
+      description: Include the release tag or full commit SHA used by the workflow.
+      placeholder: v1.0.0 or a full commit SHA
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Workflow snippet
+      description: Include the SlopGuard job and relevant permissions. Remove secrets first.
+      render: yaml
+    validations:
+      required: true
+  - type: textarea
+    id: job_log
+    attributes:
+      label: Relevant job log
+      description: Redact tokens, secrets, private package names, and other sensitive data.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: report_json
+    attributes:
+      label: Report JSON
+      description: Paste or attach the relevant SlopGuard report after removing sensitive values.
+      render: json
+    validations:
+      required: false

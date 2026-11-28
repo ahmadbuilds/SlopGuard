@@ -2,9 +2,9 @@
 
 <!-- What changed and why? -->
 
-## Linear issue
+## Related issue
 
-<!-- Link the related Linear issue. -->
+<!-- Link a related GitHub issue and use Closes #… when the pull request resolves it. -->
 
 ## Checks run
 
@@ -12,6 +12,7 @@
 - [ ] `uv run ruff format --check .`
 - [ ] `uv run pytest`
 - [ ] `uv run python scripts/sync_agent_skills.py --check` (when agent files change)
+- [ ] `make eval` or `make classifier` (when evaluation behavior or artifacts change)
 
 ## Contract change?
 

@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability privately
+    url: https://github.com/ahmadbuilds/SlopGuard/security/advisories/new
+    about: Do not open a public issue for a security report.
