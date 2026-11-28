@@ -78,14 +78,14 @@ Copy this step into your workflow's `steps:` list after checkout. The comments s
     github-token: ${{ github.token }}
 ```
 
-| Input | Description |
-| --- | --- |
-| `config` | Repository-relative TOML file. An empty value enables configuration discovery. |
-| `report-path` | JSON report path. An empty value writes to the runner's temporary directory. |
-| `python-version` | Python version used to run SlopGuard. |
-| `fail-on-block` | Return a failing step when the policy decision is `block`. |
-| `comment` | Create or update the sticky pull-request comment when set to `"true"`. |
-| `github-token` | Token for the optional comment. It is exposed to the scan only when `comment` is `"true"`; fork pull requests are skipped. |
+| Input | Default | Description |
+| --- | --- | --- |
+| `config` | `""` | Repository-relative TOML file. An empty value enables configuration discovery. |
+| `report-path` | `""` | JSON report path. An empty value writes to the runner's temporary directory. |
+| `python-version` | `3.11` | Python version used to run SlopGuard. |
+| `fail-on-block` | `true` | Return a failing step when the policy decision is `block`. |
+| `comment` | `false` | Create or update the sticky pull-request comment when set to `"true"`. |
+| `github-token` | `${{ github.token }}` | Token for the optional comment. It is exposed to the scan only when `comment` is `"true"`; fork pull requests are skipped. |
 
 ## Outputs
 
