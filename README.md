@@ -321,7 +321,17 @@ Read the [architecture guide](ARCHITECTURE.md) for the data flow, result contrac
 
 The job summary begins with `PASS`, `WARN`, or `BLOCK` and explains which policy was used. It reports blocked and warned dependencies, unverified registry lookups, and any findings omitted to stay within GitHub's output limits. An unverified lookup is not evidence that a package does not exist.
 
-Annotations link findings to changed files. If comments are enabled, SlopGuard creates or updates a sticky pull-request comment with the same decision and remediation details. Allow-listed dependencies appear as passed exceptions with their reason and expiry.
+![Job summary for a blocked pull request: the look-alike dependency reqeusts scores 95, with the evidence, closest popular package, and remediation](.github/assets/summary.png)
+
+Annotations link findings to changed files.
+
+![Error annotation on the requirements.txt line that adds reqeusts, explaining that it does not exist on PyPI and resembles requests](.github/assets/annotation.png)
+
+If comments are enabled, SlopGuard creates or updates a sticky pull-request comment with the same decision and remediation details. Later runs edit the same comment instead of adding new ones. Allow-listed dependencies appear as passed exceptions with their reason and expiry.
+
+![Sticky pull-request comment from SlopGuard with the block decision, policy, and finding details](.github/assets/comment.png)
+
+These examples come from the [slopguard-example](https://github.com/ahmadbuilds/slopguard-example/pulls) repository, where each pull request demonstrates one scenario.
 
 ## Configuration
 
