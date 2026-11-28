@@ -25,6 +25,13 @@ class RenderContext:
     path_prefix: str
 
 
+def _counted_items(count: int, singular: str, plural: str) -> str:
+    """Format a count with the matching singular or plural noun."""
+
+    noun = singular if count == 1 else plural
+    return f"{count} {noun}"
+
+
 def render_summary(report: ScanReport, *, context: RenderContext, settings: OutputSettings) -> str:
     """Render a bounded Markdown summary without reading external state."""
 
@@ -32,11 +39,13 @@ def render_summary(report: ScanReport, *, context: RenderContext, settings: Outp
     decisions = counts["by_decision"]
     severities = counts["by_severity"]
     policy = report["policy"]
+    dependency_count = sum(decisions.values())
     lines = [
         f"# SlopGuard: {_markdown(report['decision'].upper(), settings)}",
         "",
         (
-            f"Found {sum(decisions.values())} dependencies: {decisions['pass']} pass, "
+            f"Found {_counted_items(dependency_count, 'dependency', 'dependencies')}: "
+            f"{decisions['pass']} pass, "
             f"{decisions['warn']} warn, and {decisions['block']} block."
         ),
         "",
@@ -86,7 +95,9 @@ def render_summary(report: ScanReport, *, context: RenderContext, settings: Outp
         )
         omitted = max(0, len(unverified) - settings.max_unverified_in_summary)
         if omitted:
-            lines.append(f"{omitted} additional unverified results omitted.")
+            lines.append(
+                f"{_counted_items(omitted, 'additional unverified result', 'additional unverified results')} omitted."
+            )
 
     findings = sorted(
         (item for item in report["results"] if item.get("decision") in {"block", "warn"}),
@@ -109,12 +120,23 @@ def render_summary(report: ScanReport, *, context: RenderContext, settings: Outp
         )
         lines.extend(_finding_lines(item, policy, settings))
     if len(findings) > len(included_findings):
-        lines.extend(("", f"{len(findings) - len(included_findings)} additional findings omitted."))
+        omitted = len(findings) - len(included_findings)
+        lines.extend(
+            (
+                "",
+                f"{_counted_items(omitted, 'additional finding', 'additional findings')} omitted.",
+            )
+        )
 
     passed = [item for item in report["results"] if item.get("decision") == "pass"]
     if passed:
         lines.extend(
-            ("", "<details>", f"<summary>Passed dependencies ({len(passed)})</summary>", "")
+            (
+                "",
+                "<details>",
+                f"<summary>Passed {_counted_items(len(passed), 'dependency', 'dependencies')}</summary>",
+                "",
+            )
         )
         lines.extend(_passed_line(item, settings) for item in passed)
         lines.extend(("", "</details>"))
@@ -303,9 +325,8 @@ def render_annotations(
     ]
     omitted = len(annotated) - min(len(annotated), settings.max_annotations)
     if omitted and settings.max_annotations > 0:
-        output.append(
-            f"::notice::{_escape_annotation(f'{omitted} more findings in the job summary')}"
-        )
+        omitted_label = _counted_items(omitted, "more finding", "more findings")
+        output.append(f"::notice::{_escape_annotation(f'{omitted_label} in the job summary')}")
     return output
 
 

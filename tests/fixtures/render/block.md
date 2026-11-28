@@ -1,6 +1,6 @@
 # SlopGuard: BLOCK
 
-Found 1 dependencies: 0 pass, 0 warn, and 1 block.
+Found 1 dependency: 0 pass, 0 warn, and 1 block.
 
 Policy: mode block; warn at 40; block at 80; unknown results pass; config source slopguard\.toml.
 
