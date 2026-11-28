@@ -52,7 +52,14 @@ SlopGuard treats changed repository content and PyPI responses as untrusted data
 | Dependabot | Alerts and updates are enabled. |
 | Rulesets | Active rulesets protect `main` and `v*.*.*` release tags and require status checks. |
 
-The separate example repository is not included in this assessment; its settings must be reviewed independently before relying on its workflow results.
+**[Example repository](https://github.com/ahmadbuilds/slopguard-example), verified 2026-11-28.** Settings screenshots were reviewed by the maintainer.
+
+| Setting | Verified value |
+| --- | --- |
+| Default workflow token | Read access to repository contents and packages. |
+| Actions may create or approve pull requests | Off. |
+| Fork workflow approval | Required for first-time contributors. |
+| Fork-workflow secrets and write tokens | These controls are not shown for this public personal repository; GitHub does not send secrets or write tokens to its fork workflows. |
 
 ## Residual risks and limitations
 
