@@ -44,7 +44,15 @@ The action writes its JSON report and summary to the runner workspace or the pat
 
 ## Repository protections
 
-The checked-in workflows use SHA-pinned third-party actions and least-privilege permissions. Dependabot checks dependencies, and OpenSSF Scorecard runs periodically. No CodeQL analysis workflow is checked in; the Scorecard SARIF upload does not run CodeQL. The action's workflows do not require repository secrets for scanning. The repository's Actions fork settings are recorded in the [security review](SECURITY_REVIEW.md).
+Repository settings were verified by Muhammad Ahmad on 2026-11-28:
+
+- CodeQL default setup analyzes Python and GitHub Actions.
+- Secret scanning and push protection are enabled, and private vulnerability reporting is available.
+- Dependabot alerts and updates are enabled.
+- Rulesets protect `main` and `v*.*.*` release tags and require status checks.
+- The Actions policy requires full-SHA references and restricts Actions to an allow-list.
+
+The checked-in workflows also use least-privilege permissions. The action does not require repository secrets for scanning. See the [security review](SECURITY_REVIEW.md) for the complete repository configuration assessment.
 
 Use the private reporting form above to disclose a vulnerability; do not post it in a public issue.
 

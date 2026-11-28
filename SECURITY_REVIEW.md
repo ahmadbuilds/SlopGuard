@@ -3,9 +3,9 @@
 | Review detail | Value |
 | --- | --- |
 | Reviewed | 2026-11-28 |
-| Release | 1.0.0 |
+| Review point | Main after release 1.0.0 |
 | Source commit | [4439fc16d19cd473e8c12eff532e9067573a1801](https://github.com/ahmadbuilds/SlopGuard/commit/4439fc16d19cd473e8c12eff532e9067573a1801) |
-| Reviewers | Abdullah Latif; Muhammad Ahmad (repository configuration) |
+| Reviewers | Abdullah Latif; Muhammad Ahmad (repository configuration, verified 2026-11-28) |
 
 ## Scope and method
 
@@ -45,10 +45,14 @@ SlopGuard treats changed repository content and PyPI responses as untrusted data
 | Actions may create or approve pull requests | Off. |
 | Fork workflow approval | Required for first-time contributors. |
 | Fork-workflow secrets and write tokens | Not available for this public repository; GitHub does not send secrets or write tokens to fork workflows. |
-| Allowed Actions | All actions are allowed; the repository does not enforce full-SHA references, so every workflow and composite-action reference is pinned to a full SHA. |
-| CodeQL | No CodeQL analysis workflow is checked in; repository-level default setup was not verified. Scorecard's SARIF uploader does not run CodeQL. |
+| Allowed Actions | The Actions policy requires full-SHA references and restricts Actions to an allow-list. Third-party workflow and composite-action references are pinned to full SHAs. |
+| CodeQL | Repository-level default setup analyzes Python and GitHub Actions. The Scorecard SARIF uploader is separate from CodeQL. |
+| Secret scanning | Secret scanning and push protection are enabled. |
+| Private vulnerability reporting | Enabled through GitHub's private reporting form. |
+| Dependabot | Alerts and updates are enabled. |
+| Rulesets | Active rulesets protect `main` and `v*.*.*` release tags and require status checks. |
 
-The separate example repository has not yet been included in this assessment. Verify its settings before enabling its workflow.
+The separate example repository is not included in this assessment; its settings must be reviewed independently before relying on its workflow results.
 
 ## Residual risks and limitations
 
