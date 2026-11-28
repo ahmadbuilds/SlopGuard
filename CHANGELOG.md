@@ -8,6 +8,14 @@ always points at the latest `1.x.y` release.
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-11-28
+
+### Changed
+
+- The Action's display name is now "SlopGuard PyPI Dependency Check" so it can be listed on the
+  GitHub Marketplace. Workflows keep using `ahmadbuilds/SlopGuard@v1`; no change is needed.
+- The README shows example screenshots of the job summary, annotation and pull-request comment.
+
 ## [1.0.1] - 2026-11-28
 
 ### Changed
@@ -91,7 +99,8 @@ First stable release of the SlopGuard GitHub Action.
 - Initial pre-release: dependency extraction, the PyPI registry client, look-alike detection and
   configurable risk scoring.
 
-[Unreleased]: https://github.com/ahmadbuilds/SlopGuard/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/ahmadbuilds/SlopGuard/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/ahmadbuilds/SlopGuard/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/ahmadbuilds/SlopGuard/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/ahmadbuilds/SlopGuard/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/ahmadbuilds/SlopGuard/releases/tag/v0.1.0
