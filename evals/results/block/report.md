@@ -4,7 +4,7 @@ Included labels: 426; excluded labels: 69
 
 ## Run provenance
 
-Tool version: 1\.0\.1; recording date: 2026\-11\-27T12:09:06\.303531Z; config: slopguard\.block\.toml (SHA256 1566184db1f6b5096766cad6514aa571cb82b2bc29a181a5c543c7f57a0d3a4b).
+Tool version: 1\.0\.2; recording date: 2026\-11\-27T12:09:06\.303531Z; config: slopguard\.block\.toml (SHA256 1566184db1f6b5096766cad6514aa571cb82b2bc29a181a5c543c7f57a0d3a4b).
 Labels SHA256: 42417eb7e3f68f133b4dbba8ac63be6adea6a1edbc341ffd23d55703a9499f51; registry recording SHA256: 3106580dfb961434a8b9e8c7a6605db2394be9bb14acca54db4473ffe6f11458.
 Real PR file SHA256: ea63d0787c4e32e3ff913b5b83c02705e0f18da6a5c8368bddcb75b12bfeecb1; real PR registry SHA256: 193e30c507975bca7d4b2a0c61e67f226e2a8cd2628c9914b640994851202ed3.
 Git commit and runtime are in run_info.json because they vary between runs.
