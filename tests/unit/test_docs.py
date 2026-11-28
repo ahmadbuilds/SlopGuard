@@ -68,13 +68,33 @@ def test_readme_documents_every_action_input_and_default() -> None:
     action = _action_document()
     input_specs = action["inputs"]
     assert isinstance(input_specs, dict)
-    headers, rows = _markdown_table(README.read_text(encoding="utf-8"), "Usage and inputs")
+    readme = README.read_text(encoding="utf-8")
+    headers, rows = _markdown_table(readme, "Usage and inputs")
     assert "Input" in headers and "Default" in headers
     assert len(rows) == len(input_specs)
 
     documented = {row["Input"]: "" if row["Default"] == '""' else row["Default"] for row in rows}
     expected = {name: str(spec["default"]) for name, spec in input_specs.items()}
     assert documented == expected
+
+    section_start = readme.index("## Usage and inputs")
+    section_end = readme.find("\n## ", section_start + 1)
+    section = readme[section_start:] if section_end < 0 else readme[section_start:section_end]
+    examples = re.findall(r"(?ms)^```yaml\s*\n(.*?)^```\s*$", section)
+    assert len(examples) == 1, "expected one copyable YAML usage example"
+
+    example = yaml.load(examples[0], Loader=yaml.BaseLoader)
+    assert isinstance(example, list) and len(example) == 1
+    step_inputs = example[0]["with"]
+    assert step_inputs == expected
+
+    default_comments = {
+        match.group(2): yaml.load(match.group(1), Loader=yaml.BaseLoader)
+        for match in re.finditer(
+            r"(?m)^[ \t]*# Default: (.*?)\r?\n[ \t]*([A-Za-z0-9_-]+):", examples[0]
+        )
+    }
+    assert default_comments == expected
 
 
 def test_readme_documents_every_action_output() -> None:
