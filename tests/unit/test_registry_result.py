@@ -1,4 +1,4 @@
-"""Tests for applying registry results to SG-01 dependency candidates."""
+"""Tests for applying registry results to dependency candidates."""
 
 import json
 from copy import deepcopy

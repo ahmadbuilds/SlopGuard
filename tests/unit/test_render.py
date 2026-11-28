@@ -544,7 +544,7 @@ def test_contract_fixture_and_allowlist_result_match_contract() -> None:
     )
 
 
-# Regression tests ported from VOI-118 (PR #14): unverified registry results must stay visible.
+# Unknown registry evidence must stay visible, even when the policy permits a pass.
 
 
 def test_passed_unknown_registry_results_are_listed_as_unverified() -> None:

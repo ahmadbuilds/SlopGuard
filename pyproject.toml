@@ -12,7 +12,7 @@ requires-python = ">=3.11"
 dependencies = ["packaging>=23.2,<27"]
 keywords = ["dependency-security", "pypi", "typosquatting", "github-action"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
