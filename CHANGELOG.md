@@ -8,6 +8,10 @@ always points at the latest `1.x.y` release.
 
 ## [Unreleased]
 
+### Fixed
+
+- Use singular labels for one dependency, finding or result in GitHub summaries and annotations.
+
 ### Security
 
 - Updated the development dependency pytest from 8.3.3 to 9.2.0 to fix GHSA-6w46-j5rx-g56g
