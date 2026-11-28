@@ -176,7 +176,7 @@ def test_repository_text_has_no_internal_tracking_or_school_language() -> None:
         (
             r"\b" + "SG" + r"-?[0-9]{2}\b",
             r"\b" + "VOI" + "-",
-            r"\b" + "Lin" + "ear" + r"\b",
+            r"(?-i:\b" + "Lin" + "ear" + r"\b)",
             "FAST" + "-" + "NUCES",
             "term" + r"\s+" + "project",
             "Group" + r"\s+" + "4",
@@ -186,6 +186,13 @@ def test_repository_text_has_no_internal_tracking_or_school_language() -> None:
             "later" + r"\s+" + "stage",
         )
     )
+    product_name = "Lin" + "ear"
+    lowercase_usage = "lin" + "ear" + " scan"
+    uppercase_usage = "LIN" + "EAR time"
+    assert re.search(forbidden, product_name, flags=re.IGNORECASE)
+    assert not re.search(forbidden, lowercase_usage, flags=re.IGNORECASE)
+    assert not re.search(forbidden, uppercase_usage, flags=re.IGNORECASE)
+
     tracked_files = subprocess.run(
         ["git", "ls-files", "-z"],
         cwd=ROOT,
