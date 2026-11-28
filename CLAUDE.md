@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # Claude Code
 
 Follow [AGENTS.md](AGENTS.md) for repository-wide instructions, commands, module responsibilities, and branch conventions.

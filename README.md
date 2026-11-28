@@ -39,12 +39,13 @@ permissions:
 jobs:
   slopguard:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: ahmadbuilds/SlopGuard@85c779b5c5e724c0b16915bd47cb770b4e138a1a # v1.0.0
+      - uses: ahmadbuilds/SlopGuard@v1
 ```
 
 This runs on `pull_request` so the scanner sees proposed changes without granting write access to pull-request code. `contents: read` lets checkout read the repository. `fetch-depth: 0` provides the history needed to find the merge base. `persist-credentials: false` prevents checkout from leaving its token in Git configuration. The default policy warns and does not block.
@@ -55,7 +56,7 @@ Copy this step into your workflow's `steps:` list after checkout. The comments s
 
 ```yaml
 - name: Scan dependency changes
-  uses: ahmadbuilds/SlopGuard@85c779b5c5e724c0b16915bd47cb770b4e138a1a # v1.0.0
+  uses: ahmadbuilds/SlopGuard@v1
   with:
     # Repository-relative TOML configuration file.
     # Default: ""
@@ -95,7 +96,7 @@ Copy this step into your workflow's `steps:` list after checkout. The comments s
 | `warned` | Warned dependency names, one per line. |
 | `report-path` | Path to the JSON report. |
 
-The action also writes a Markdown job summary and GitHub workflow annotations when the runner provides the corresponding output files.
+The action writes a Markdown job summary to the runner-provided summary file and emits annotations as GitHub workflow commands on stdout.
 
 ## Scenarios
 
@@ -115,12 +116,13 @@ permissions:
 jobs:
   slopguard:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: ahmadbuilds/SlopGuard@85c779b5c5e724c0b16915bd47cb770b4e138a1a # v1.0.0
+      - uses: ahmadbuilds/SlopGuard@v1
 ```
 
 ### Block a pull request
@@ -139,12 +141,13 @@ permissions:
 jobs:
   slopguard:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: ahmadbuilds/SlopGuard@85c779b5c5e724c0b16915bd47cb770b4e138a1a # v1.0.0
+      - uses: ahmadbuilds/SlopGuard@v1
 ```
 
 ### Allow-list a dependency
@@ -163,12 +166,13 @@ permissions:
 jobs:
   slopguard:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: ahmadbuilds/SlopGuard@85c779b5c5e724c0b16915bd47cb770b4e138a1a # v1.0.0
+      - uses: ahmadbuilds/SlopGuard@v1
 ```
 
 ### Post a sticky pull-request comment
@@ -188,12 +192,13 @@ permissions:
 jobs:
   slopguard:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: ahmadbuilds/SlopGuard@85c779b5c5e724c0b16915bd47cb770b4e138a1a # v1.0.0
+      - uses: ahmadbuilds/SlopGuard@v1
         with:
           comment: "true"
           github-token: ${{ github.token }}
@@ -215,13 +220,14 @@ permissions:
 jobs:
   slopguard:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
       - id: scan
-        uses: ahmadbuilds/SlopGuard@85c779b5c5e724c0b16915bd47cb770b4e138a1a # v1.0.0
+        uses: ahmadbuilds/SlopGuard@v1
       - name: Handle warnings
         if: steps.scan.outputs.decision == 'warn'
         run: echo "Review the SlopGuard findings in this job."
@@ -243,12 +249,13 @@ permissions:
 jobs:
   slopguard:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: ahmadbuilds/SlopGuard@85c779b5c5e724c0b16915bd47cb770b4e138a1a # v1.0.0
+      - uses: ahmadbuilds/SlopGuard@v1
         with:
           config: .github/slopguard.toml
 ```
@@ -278,12 +285,13 @@ permissions:
 jobs:
   slopguard:
     runs-on: self-hosted
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: ahmadbuilds/SlopGuard@85c779b5c5e724c0b16915bd47cb770b4e138a1a # v1.0.0
+      - uses: ahmadbuilds/SlopGuard@v1
         with:
           comment: "true"
 ```
@@ -331,18 +339,19 @@ Copy [`examples/slopguard.toml`](examples/slopguard.toml) to your repository as 
 
 ## Run locally
 
-Install the locked project environment with `uv`, then scan a range of commits:
+Run SlopGuard against your own project without installing it into that project. Set `PROJECT_DIR` to its checkout, then scan the merge base and current commit:
 
 ```sh
-uv sync --locked
-BASE_REF="${GITHUB_BASE_REF:-main}"
-git fetch origin "$BASE_REF"
-BASE_SHA="$(git rev-parse FETCH_HEAD)"
-HEAD_SHA="$(git rev-parse HEAD)"
-uv run slopguard scan --repo . --base "$BASE_SHA" --head "$HEAD_SHA" --report slopguard-report.json --summary slopguard-summary.md
+PROJECT_DIR="../your-project"
+git -C "$PROJECT_DIR" fetch origin main
+BASE_SHA="$(git -C "$PROJECT_DIR" merge-base origin/main HEAD)"
+HEAD_SHA="$(git -C "$PROJECT_DIR" rev-parse HEAD)"
+uvx --from git+https://github.com/ahmadbuilds/SlopGuard@v1 slopguard scan \
+  --repo "$PROJECT_DIR" --base "$BASE_SHA" --head "$HEAD_SHA" \
+  --report slopguard-report.json --summary slopguard-summary.md
 ```
 
-The command prints the policy decision and writes the JSON report and Markdown summary to the specified paths. See `uv run slopguard scan --help` for the other CLI options.
+The command prints the policy decision and writes the JSON report and Markdown summary to the specified paths. See `uvx --from git+https://github.com/ahmadbuilds/SlopGuard@v1 slopguard scan --help` for the other CLI options.
 
 ## FAQ and troubleshooting
 
@@ -384,7 +393,7 @@ SlopGuard is a dependency-name review aid, not a malware or vulnerability scanne
 
 ## Versioning
 
-The `@v1` tag follows the latest compatible `1.x.y` release. The examples pin the full commit SHA for release `v1.0.0` and include its version comment. For supply-chain control, pin a full SHA and let Dependabot propose reviewed updates.
+The examples use `@v1`, which follows the latest compatible `1.x.y` release. For stricter supply-chain control, replace `@v1` with a full commit SHA and let Dependabot propose reviewed updates.
 
 ## Contributing, security, and license
 
