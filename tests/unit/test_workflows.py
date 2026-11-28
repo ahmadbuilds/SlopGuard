@@ -12,7 +12,6 @@ ROOT = Path(__file__).resolve().parents[2]
 ACTION = ROOT / "action.yml"
 WORKFLOWS = (*sorted((ROOT / ".github/workflows").glob("*.yml")), ROOT / "examples/workflow.yml")
 SHA_PIN = re.compile(r"@([0-9a-f]{40})$")
-PUBLISHED_ACTION = "ahmadbuilds/SlopGuard@v1"
 
 
 def _load_yaml(path: Path) -> dict[str, object]:
@@ -48,7 +47,7 @@ def test_workflows_declare_least_privilege_permissions_and_pin_actions() -> None
         document = _load_yaml(path)
         for item in _walk(document):
             uses = item.get("uses")
-            if not isinstance(uses, str) or uses.startswith("./") or uses == PUBLISHED_ACTION:
+            if not isinstance(uses, str) or uses.startswith("./"):
                 continue
             assert SHA_PIN.search(uses), f"third-party action is not pinned in {path}: {uses}"
 
@@ -93,7 +92,7 @@ def test_example_keeps_comment_opt_in_and_contents_read_only() -> None:
     assert example["jobs"]["slopguard"]["steps"][-1]["with"].get("comment") is None
     source = (ROOT / "examples/workflow.yml").read_text(encoding="utf-8")
     assert "# pull-requests: write" in source
-    assert '# comment: "true"' in source
+    assert '#   comment: "true"' in source
 
 
 def test_release_reuses_ci_workflow_and_ci_supports_workflow_call() -> None:

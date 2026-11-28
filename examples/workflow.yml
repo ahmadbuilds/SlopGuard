@@ -5,20 +5,19 @@ on:
 
 permissions:
   contents: read
-  # To enable sticky PR comments, also grant:
+  # To enable sticky comments, add:
   # pull-requests: write
 
 jobs:
   slopguard:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: ahmadbuilds/SlopGuard@v1
-        with:
-          fail-on-block: "true"
-          # Opt in only after granting pull-requests: write above.
-          # comment: "true"
+      - uses: ahmadbuilds/SlopGuard@85c779b5c5e724c0b16915bd47cb770b4e138a1a # v1.0.0
+        with: {}
+        # Opt in only after granting the permission above.
+        # with:
+        #   comment: "true"
