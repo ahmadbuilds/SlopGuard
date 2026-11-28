@@ -329,7 +329,7 @@ Annotations link findings to changed files.
 
 If comments are enabled, SlopGuard creates or updates a sticky pull-request comment with the same decision and remediation details. Later runs edit the same comment instead of adding new ones. Allow-listed dependencies appear as passed exceptions with their reason and expiry.
 
-![Sticky pull-request comment from SlopGuard with the block decision, policy, and finding details](.github/assets/comment.png)
+![Top of the sticky pull-request comment posted by github-actions, marked as edited by a later run, opening with the block decision and policy](.github/assets/comment.png)
 
 These examples come from the [slopguard-example](https://github.com/ahmadbuilds/slopguard-example/pulls) repository, where each pull request demonstrates one scenario.
 
